@@ -345,8 +345,21 @@ const TTS='speechSynthesis' in window;
 let VOICE=null;
 function pickVoice(){try{const vs=speechSynthesis.getVoices().filter(v=>/^en[-_](US|GB)/i.test(v.lang));VOICE=vs.find(v=>/Samantha|Google US English|Aria|Jenny|Natural|Ava/i.test(v.name))||vs.find(v=>/^en[-_]US/i.test(v.lang))||vs[0]||null}catch(e){}}
 if(TTS){pickVoice();try{speechSynthesis.onvoiceschanged=pickVoice}catch(e){}}
+/* recorded AI voice clips (audio/<hash>.mp3) win over the phone's own voice */
+const CLIPS=new Set();let CLIP=null;
+function stopVoice(){try{CLIP?.pause()}catch(e){}try{speechSynthesis.cancel()}catch(e){}}
 function say(text,slow){
-  if(!TTS||!text){toast('이 기기에서는 읽어 주기를 쓸 수 없어요.');return}
+  if(!text)return;
+  stopVoice();
+  const h=hash(text);
+  if(CLIPS.has(h)){
+    try{CLIP=new Audio('audio/'+h+'.mp3');CLIP.playbackRate=slow?.7:1;CLIP.preservesPitch=true;
+      const p=CLIP.play();if(p)p.catch(()=>sayTTS(text,slow));return}catch(e){}
+  }
+  sayTTS(text,slow);
+}
+function sayTTS(text,slow){
+  if(!TTS){toast('이 기기에서는 읽어 주기를 쓸 수 없어요.');return}
   try{speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(text);u.lang=VOICE?.lang||'en-US';if(VOICE)u.voice=VOICE;u.rate=slow?.6:.92;speechSynthesis.speak(u)}
   catch(e){toast('이 기기에서는 읽어 주기를 쓸 수 없어요.')}
 }
@@ -552,7 +565,7 @@ function toggleRec(){
   const L=S.lesson;if(!L||L.st.result)return;
   if(REC){try{REC.stop()}catch(e){}return}
   if(!SR){toast('이 브라우저에서는 음성 인식이 안 돼요. 크롬으로 열어 주세요.');return}
-  try{speechSynthesis.cancel()}catch(e){}
+  stopVoice();
   const it=curItem(),idx=L.i,target=it.c?it.c.en:it.q.a;
   const r=new SR();r.lang='en-US';r.interimResults=true;r.maxAlternatives=5;r.continuous=false;
   REC=r;L.st.listening=true;L.st.typed='';render();
@@ -897,6 +910,7 @@ async function start(){
   for(const id in base)if(!hidden.has(id))S.notes[id]=buildNote(id,base[id]);
   const loc=lsGet('notes')||{};for(const id in loc){const b=buildNote(id,loc[id]);b.local=true;S.notes[id]=b}
   try{const r=await fetch('quiz-ko.json',{cache:'no-cache'});if(r.ok)S.qko=await r.json()}catch(e){}
+  try{const r=await fetch('audio/index.json',{cache:'no-cache'});if(r.ok)(await r.json()).forEach(h=>CLIPS.add(h))}catch(e){}
   S.prog=lsGet('prog')||{};S.stats=lsGet('stats')||S.stats;S.loaded=true;
   buildFC();render();
   try{navigator.storage?.persist?.()}catch(e){}
