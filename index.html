@@ -272,6 +272,7 @@ function meanText(c){
   return s.replace(/\s+/g,' ').trim();
 }
 function buildNote(id,v){
+  v={...v,label:String(v.label||v.title||id).replace(/s*쉐도잉s*영어s*표현s*$/,'').trim()||v.label};
   const p=parseNote(v.md||'');
   p.cards.forEach(c=>{c.note=id;c.id=hash(c.front+'|'+strip(c.back).slice(0,40));c.key=id+'/'+c.id;c.en=engText(c);c.ko=meanText(c);c.words=c.en?c.en.split(' ').length:0});
   p.quiz.forEach((q,k)=>{q.note=id;q.key=id+'/q'+k});
