@@ -104,7 +104,10 @@ nav button[aria-selected="true"]{color:var(--ink);border-color:var(--accent)}
 .opt.wrong{border-color:var(--bad);background:var(--bad-soft)}
 .answer{min-height:96px;border-bottom:1.5px solid var(--line);padding-bottom:8px;display:flex;flex-wrap:wrap;gap:8px;align-content:flex-start;background:repeating-linear-gradient(transparent 0 47px,var(--line) 47px 48px)}
 .bank{display:flex;flex-wrap:wrap;gap:8px;justify-content:center}
-.tile{all:unset;cursor:pointer;font-family:var(--f-script);font-weight:700;font-size:16px;padding:7px 12px;border:1.5px solid var(--line);border-bottom-width:3px;border-radius:9px;background:var(--card)}
+.tile{all:unset;cursor:pointer;font-family:var(--f-script);font-weight:700;font-size:16px;padding:7px 12px;border:1.5px solid var(--line);border-bottom-width:3px;border-radius:9px;background:var(--card);touch-action:none;user-select:none;-webkit-user-select:none}
+.tile.drag{position:relative;z-index:3;cursor:grabbing;border-color:var(--accent);box-shadow:0 8px 18px rgba(0,0,0,.18)}
+.tile.ins{box-shadow:-5px 0 0 -1px var(--accent)}
+.answer.ins-end::after{content:"";width:3px;height:34px;align-self:center;background:var(--accent);border-radius:2px}
 .tile.used{visibility:hidden}
 textarea,input[type=text],input[type=search]{font:inherit;color:var(--ink);background:var(--card);border:1.5px solid var(--line);border-radius:8px;padding:10px 12px;width:100%}
 textarea.en,input.en{font-family:var(--f-script);font-size:17px}
@@ -562,6 +565,7 @@ function viewLesson(){
     ask=it.type==='arrange'?'영어로 옮겨 보세요':'들은 문장을 순서대로 놓으세요';
     body=(it.type==='arrange'?`<div class="row" style="justify-content:flex-start;flex-wrap:nowrap;gap:12px"><button class="pbtn mid" data-act="say" aria-label="듣기">${ICON.speak}</button><div class="prompt"><span class="hl">${esc(c.ko)}</span></div></div>`:playBtns(true))+
     `<div class="answer">${st.tiles.map(k=>`<button class="tile" data-act="untile" data-v="${k}" ${st.result?'disabled':''}>${esc(it.bank.find(b=>b.k===k).w)}</button>`).join('')}</div>
+     <div class="hint">단어를 눌러서 넣고 빼요. 끌어서 원하는 자리에 놓을 수도 있어요.</div>
      <div class="bank">${it.bank.map(b=>`<button class="tile ${st.tiles.includes(b.k)?'used':''}" data-act="tile" data-v="${b.k}" ${st.result?'disabled':''}>${esc(b.w)}</button>`).join('')}</div>`;
   }
   else if(it.type==='dictate'){ask='들은 문장을 그대로 말하거나 쓰세요';body=playBtns(true)+micInput(st)}
@@ -693,6 +697,7 @@ function render(){
 let tT=null;function toast(t){const e=$('#toast');e.textContent=t;e.hidden=false;clearTimeout(tT);tT=setTimeout(()=>e.hidden=true,3200)}
 
 document.addEventListener('click',e=>{
+  if(NOCLICK){NOCLICK=false;return}
   const t=e.target.closest('[data-act],[data-tab]');if(!t||t.disabled)return;
   if(t.dataset.tab){S.tab=t.dataset.tab;lsSet('tab',S.tab);if(S.tab==='cards'&&!S.fc.queue.length)buildFC();render();return}
   const v=t.dataset.v,L=S.lesson,it=curItem();
@@ -748,6 +753,42 @@ document.addEventListener('keydown',e=>{
   if(e.key===' '||e.key==='Enter'){if(S.fc.queue[S.fc.qi]){e.preventDefault();S.fc.flipped=!S.fc.flipped;render()}}
   else if(['1','2','3'].includes(e.key))fgrade(+e.key);
 });
+
+/* ---------- dragging word tiles: reorder the answer line, or move tiles between bank and answer ---------- */
+let DRAG=null,NOCLICK=false;
+document.addEventListener('pointerdown',e=>{
+  const t=e.target.closest('.tile');if(!t||t.disabled||!S.lesson||S.lesson.st.result)return;
+  DRAG={el:t,k:+t.dataset.v,from:t.closest('.answer')?'answer':'bank',x:e.clientX,y:e.clientY,on:false,id:e.pointerId,idx:null};
+});
+document.addEventListener('pointermove',e=>{
+  const D=DRAG;if(!D||e.pointerId!==D.id)return;
+  const dx=e.clientX-D.x,dy=e.clientY-D.y;
+  if(!D.on){if(Math.hypot(dx,dy)<8)return;D.on=true;D.el.classList.add('drag');try{D.el.setPointerCapture(D.id)}catch(_){}}
+  D.el.style.transform=`translate(${dx}px,${dy}px)`;
+  const ans=$('.answer');if(!ans)return;
+  ans.querySelectorAll('.tile.ins').forEach(x=>x.classList.remove('ins'));ans.classList.remove('ins-end');
+  const ar=ans.getBoundingClientRect();D.idx=null;
+  if(e.clientY>=ar.top-24&&e.clientY<=ar.bottom+24){
+    const others=[...ans.querySelectorAll('.tile')].filter(x=>x!==D.el);
+    let idx=others.length;
+    for(let i=0;i<others.length;i++){const r=others[i].getBoundingClientRect();if(e.clientY<r.top||(e.clientY<=r.bottom&&e.clientX<r.left+r.width/2)){idx=i;break}}
+    D.idx=idx;
+    if(others[idx])others[idx].classList.add('ins');else ans.classList.add('ins-end');
+  }
+});
+document.addEventListener('pointerup',e=>{
+  const D=DRAG;if(!D||e.pointerId!==D.id)return;DRAG=null;
+  if(!D.on)return;
+  NOCLICK=true;setTimeout(()=>{NOCLICK=false},400);
+  const st=S.lesson?.st;
+  if(st){
+    const rest=st.tiles.filter(k=>k!==D.k);
+    if(D.idx!=null){rest.splice(D.idx,0,D.k);st.tiles=rest}
+    else if(D.from==='answer')st.tiles=rest;
+  }
+  render();
+});
+document.addEventListener('pointercancel',e=>{if(DRAG&&e.pointerId===DRAG.id){DRAG=null;render()}});
 
 /* ---------- start ---------- */
 async function start(){
