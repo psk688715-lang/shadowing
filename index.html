@@ -595,7 +595,7 @@ function shell(inner){
 }
 function srcChips(cur,act){
   const notes=notesSorted();const due=allCards().filter(isDue).length;
-  return `<div class="chips"><button class="chip" data-act="${act}" data-v="due" aria-pressed="${cur==='due'}">오늘 복습할 것 · ${due}</button>
+  return `<div class="chips"><button class="chip" data-act="${act}" data-v="due" aria-pressed="${cur==='due'}">전체 노트 · 오늘 볼 ${due}개</button>
   ${notes.map(n=>`<button class="chip" data-act="${act}" data-v="${esc(n.id)}" aria-pressed="${cur===n.id}">${esc(shortDate(n.date))} ${esc(n.label)}</button>`).join('')}</div>`;
 }
 function viewHome(){
@@ -613,7 +613,7 @@ function viewHome(){
       <div class="row"><span class="hint">하루 목표</span><div class="seg">${[20,30,50].map(g=>`<button data-act="goal" data-v="${g}" aria-pressed="${goal===g}">${g} XP</button>`).join('')}</div></div>
       <div class="row"><span class="hint">효과음</span><div class="seg"><button data-act="sfx" data-v="1" aria-pressed="${sfxOn()}">켜기</button><button data-act="sfx" data-v="0" aria-pressed="${!sfxOn()}">끄기</button></div></div>
   </div>
-  <div style="display:flex;flex-direction:column;gap:8px"><h2>무엇으로 공부할까요</h2>${srcChips(S.src,'src')}</div>
+  <div style="display:flex;flex-direction:column;gap:8px"><h2>어느 노트로 공부할까요</h2><div class="hint">평소엔 「전체 노트」를 고르세요. 볼 차례가 된 표현부터 나와요. 날짜를 고르면 그날 노트만 나와요.</div>${srcChips(S.src,'src')}</div>
   <div class="starts">
     <button class="start main" data-act="lesson" data-v="mix"><span class="ic">${ICON.mix}</span><div><b>레슨 시작</b><span>듣기 · 말하기 · 고르기 · 배열 섞어서 ${LESSON_LEN}문제</span></div><span>›</span></button>
     <button class="start" data-act="lesson" data-v="listen"><span class="ic">${ICON.ear}</span><div><b>듣기 집중</b><span>듣고 뜻 고르기 · 듣고 받아쓰기 · 듣고 배열하기</span></div><span>›</span></button>
