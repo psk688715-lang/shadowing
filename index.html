@@ -1,0 +1,757 @@
+<!doctype html><html lang="ko"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#2C4BC9">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png"><link rel="apple-touch-icon" href="icon-192.png">
+<title>쉐도잉 복습장</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Courier+Prime:wght@400;700&family=IBM+Plex+Sans+KR:wght@400;500;700&display=swap">
+<style>
+/* Layout: one narrow column like a script page — home with streak + lesson starters, a lesson runs one exercise per screen with a fixed answer bar */
+:root{
+  --paper:#F3F5F8; --card:#FFFFFF; --ink:#1A1E29; --muted:#5B6476; --line:#D9DEE7;
+  --accent:#2C4BC9; --accent-ink:#FFFFFF; --mark:#FFE16B; --mark-ink:#1A1E29;
+  --good:#1D8656; --good-soft:#DDF2E7; --warn:#A86A12; --bad:#BD3B34; --bad-soft:#F8E1DF; --soft:#E8ECF6;
+  --f-script:"Courier Prime","Courier New",Courier,monospace;
+  --f-body:"IBM Plex Sans KR","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --paper:#101319; --card:#191D26; --ink:#E7EAF1; --muted:#99A1B3; --line:#2B3140;
+  --accent:#8CA4FF; --accent-ink:#0E1220; --mark:#5E5014; --mark-ink:#F4EBC0;
+  --good:#4CC28A; --good-soft:#163527; --warn:#E0A64C; --bad:#F0736A; --bad-soft:#3A1D1C; --soft:#222838; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --paper:#101319; --card:#191D26; --ink:#E7EAF1; --muted:#99A1B3; --line:#2B3140;
+  --accent:#8CA4FF; --accent-ink:#0E1220; --mark:#5E5014; --mark-ink:#F4EBC0;
+  --good:#4CC28A; --good-soft:#163527; --warn:#E0A64C; --bad:#F0736A; --bad-soft:#3A1D1C; --soft:#222838; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--paper);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.6;-webkit-tap-highlight-color:transparent}
+.wrap{max-width:680px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:18px 120px;display:flex;flex-direction:column;gap:16px}
+header{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px}
+h1{font-size:21px;margin:0;letter-spacing:-.01em}
+h1 small{display:block;font-size:12px;font-weight:500;color:var(--muted);letter-spacing:.04em}
+h2{font-size:16px;margin:0}
+.stats{display:flex;gap:16px;font-variant-numeric:tabular-nums}
+.stat{display:flex;flex-direction:column;align-items:flex-end}
+.stat b{font-size:19px;line-height:1.1}
+.stat span{font-size:11px;color:var(--muted);letter-spacing:.04em}
+.stat.hot b{color:var(--warn)}
+nav{display:flex;gap:4px;border-bottom:1px solid var(--line)}
+nav button{all:unset;cursor:pointer;padding:8px 14px;font-weight:500;color:var(--muted);border-bottom:2px solid transparent;margin-bottom:-1px}
+nav button[aria-selected="true"]{color:var(--ink);border-color:var(--accent)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{all:unset;cursor:pointer;font-size:13px;padding:5px 12px;border:1px solid var(--line);border-radius:999px;color:var(--muted);background:var(--card)}
+.chip[aria-pressed="true"]{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.seg button{all:unset;cursor:pointer;font-size:12px;padding:5px 10px;color:var(--muted)}
+.seg button[aria-pressed="true"]{background:var(--soft);color:var(--ink);font-weight:500}
+.meter{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+.bar{height:4px;background:var(--line);border-radius:2px;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--accent);transition:width .3s}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:16px;display:flex;flex-direction:column;gap:12px}
+.hint{font-size:13px;color:var(--muted)}
+.status{font-size:13px;padding:8px 12px;border-radius:6px;background:var(--soft);color:var(--muted)}
+.empty{padding:26px 18px;text-align:center;color:var(--muted)}
+.empty b{display:block;color:var(--ink);font-size:16px;margin-bottom:4px}
+.btn{all:unset;cursor:pointer;text-align:center;padding:11px 14px;border-radius:8px;border:1px solid var(--line);background:var(--card);font-weight:500;font-size:15px;box-sizing:border-box}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.btn.small{padding:6px 11px;font-size:13px}
+.btn.danger{color:var(--bad)}
+.btn[disabled]{opacity:.4;cursor:default}
+.btn kbd{font-family:var(--f-script);font-size:11px;opacity:.7;margin-left:6px}
+/* home */
+.today{display:grid;grid-template-columns:auto 1fr;gap:16px;align-items:center}
+.ring{width:84px;height:84px;border-radius:50%;display:grid;place-items:center;background:conic-gradient(var(--accent) calc(var(--p)*1%),var(--line) 0)}
+.ring div{width:66px;height:66px;border-radius:50%;background:var(--card);display:flex;flex-direction:column;align-items:center;justify-content:center;font-variant-numeric:tabular-nums;line-height:1.1}
+.ring b{font-size:20px} .ring span{font-size:11px;color:var(--muted)}
+.week{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;align-items:end;height:64px}
+.week div{display:flex;flex-direction:column;align-items:center;gap:3px;height:100%;justify-content:flex-end;font-size:10px;color:var(--muted)}
+.week i{display:block;width:100%;max-width:26px;border-radius:3px 3px 0 0;background:var(--accent);min-height:2px}
+.week i.zero{background:var(--line)}
+.starts{display:grid;grid-template-columns:1fr;gap:8px}
+.start{all:unset;cursor:pointer;display:grid;grid-template-columns:44px 1fr auto;gap:12px;align-items:center;padding:12px 14px;border:1px solid var(--line);border-radius:8px;background:var(--card)}
+.start:hover{border-color:var(--muted)}
+.start .ic{width:44px;height:44px;border-radius:10px;display:grid;place-items:center;background:var(--soft);color:var(--accent)}
+.start .ic svg{width:24px;height:24px}
+.start b{display:block;font-size:15px}
+.start span{font-size:12px;color:var(--muted)}
+.start.main{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.start.main .ic{background:rgba(255,255,255,.18);color:var(--accent-ink)}
+.start.main span{color:var(--accent-ink);opacity:.85}
+/* lesson */
+.lesson{max-width:680px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:14px 190px;display:flex;flex-direction:column;gap:18px}
+.ltop{display:grid;grid-template-columns:auto 1fr auto;gap:12px;align-items:center}
+.x{all:unset;cursor:pointer;font-size:22px;line-height:1;color:var(--muted);padding:4px 6px}
+.ltop .bar{height:10px;border-radius:5px}
+.ltop .bar i{background:var(--good)}
+.ask{font-size:13px;font-weight:700;color:var(--muted);letter-spacing:.03em}
+.prompt{font-size:21px;font-weight:500;line-height:1.45;overflow-wrap:anywhere}
+.prompt.en{font-family:var(--f-script);font-weight:700;font-size:23px}
+.prompt .hl,.hl{background:linear-gradient(transparent 58%,var(--mark) 58%);padding:0 2px}
+.slug{font-family:var(--f-script);font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);overflow-wrap:anywhere}
+.play{display:flex;gap:10px;align-items:center}
+.pbtn{all:unset;cursor:pointer;display:grid;place-items:center;border-radius:14px;background:var(--accent);color:var(--accent-ink)}
+.pbtn.big{width:84px;height:84px} .pbtn.big svg{width:40px;height:40px}
+.pbtn.mid{width:52px;height:52px;border-radius:12px} .pbtn.mid svg{width:26px;height:26px}
+.pbtn.slow{background:var(--soft);color:var(--accent)}
+.opts{display:grid;gap:8px}
+.opt{all:unset;cursor:pointer;padding:12px 14px;border:1.5px solid var(--line);border-bottom-width:3px;border-radius:10px;background:var(--card);display:grid;grid-template-columns:auto 1fr;gap:10px;align-items:center;overflow-wrap:anywhere}
+.opt .n{font-family:var(--f-script);font-size:12px;color:var(--muted);border:1px solid var(--line);border-radius:5px;padding:0 6px}
+.opt.en{font-family:var(--f-script);font-weight:700}
+.opt[aria-pressed="true"]{border-color:var(--accent);background:var(--soft)}
+.opt.right{border-color:var(--good);background:var(--good-soft)}
+.opt.wrong{border-color:var(--bad);background:var(--bad-soft)}
+.answer{min-height:96px;border-bottom:1.5px solid var(--line);padding-bottom:8px;display:flex;flex-wrap:wrap;gap:8px;align-content:flex-start;background:repeating-linear-gradient(transparent 0 47px,var(--line) 47px 48px)}
+.bank{display:flex;flex-wrap:wrap;gap:8px;justify-content:center}
+.tile{all:unset;cursor:pointer;font-family:var(--f-script);font-weight:700;font-size:16px;padding:7px 12px;border:1.5px solid var(--line);border-bottom-width:3px;border-radius:9px;background:var(--card)}
+.tile.used{visibility:hidden}
+textarea,input[type=text],input[type=search]{font:inherit;color:var(--ink);background:var(--card);border:1.5px solid var(--line);border-radius:8px;padding:10px 12px;width:100%}
+textarea.en,input.en{font-family:var(--f-script);font-size:17px}
+textarea:focus,input:focus{outline:2px solid var(--accent);outline-offset:0}
+.reveal{border-top:1px dashed var(--line);padding-top:12px;display:flex;flex-direction:column;gap:8px}
+.reveal .en{font-family:var(--f-script);font-weight:700;font-size:20px}
+.miss{text-decoration:underline wavy var(--bad);text-underline-offset:4px}
+.foot{position:fixed;left:0;right:0;bottom:0;background:var(--card);border-top:1px solid var(--line);padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-top:14px;padding-bottom:calc(14px + env(safe-area-inset-bottom,0px))}
+.foot.ok{background:var(--good-soft);border-color:var(--good)}
+.foot.no{background:var(--bad-soft);border-color:var(--bad)}
+.foot .in{max-width:680px;margin:0 auto;display:flex;flex-direction:column;gap:10px}
+.foot .msg{display:flex;flex-direction:column;gap:2px}
+.foot .msg b{font-size:17px}
+.foot.ok .msg b{color:var(--good)} .foot.no .msg b{color:var(--bad)}
+.foot .msg .en{font-family:var(--f-script);font-weight:700;overflow-wrap:anywhere}
+.foot .acts{display:grid;grid-template-columns:1fr;gap:8px}
+.foot .acts.two{grid-template-columns:1fr 1fr}
+.foot.ok .btn.primary{background:var(--good);border-color:var(--good);color:var(--card)}
+.foot.no .btn.primary{background:var(--bad);border-color:var(--bad);color:var(--card)}
+.result{text-align:center;display:flex;flex-direction:column;gap:14px;align-items:center;padding-top:24px}
+.result h2{font-size:24px}
+.rgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;width:100%}
+.rgrid div{border:1.5px solid var(--line);border-radius:10px;padding:10px 6px;font-variant-numeric:tabular-nums}
+.rgrid b{display:block;font-size:22px}
+.rgrid span{font-size:12px;color:var(--muted)}
+/* flashcards + notes */
+.stage{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:20px;display:flex;flex-direction:column;gap:12px;min-height:240px;cursor:pointer}
+.q{font-size:22px;line-height:1.45;font-weight:500;overflow-wrap:anywhere}
+.q.en{font-family:var(--f-script);font-weight:700;font-size:23px}
+.a{border-top:1px dashed var(--line);padding-top:12px;display:flex;flex-direction:column;gap:8px}
+.a .main{font-size:17px;font-weight:500}
+dl.ex{margin:0;display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:14px}
+dl.ex dt{color:var(--muted);font-size:12px;padding-top:2px;white-space:nowrap}
+dl.ex dd{margin:0;min-width:0;overflow-wrap:anywhere}
+.grades{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.speak{all:unset;cursor:pointer;display:inline-flex;align-items:center;gap:4px;font-size:13px;color:var(--accent)}
+.speak svg{width:16px;height:16px}
+.note{border-top:1px solid var(--line);padding-block:12px;display:flex;flex-direction:column;gap:8px}
+.note:first-child{border-top:0;padding-top:0}
+.note h3{margin:0;font-size:15px;overflow-wrap:anywhere}
+.note .date{font-family:var(--f-script);font-size:12px;color:var(--muted)}
+.note .acts{display:flex;flex-wrap:wrap;gap:6px}
+.clist{display:flex;flex-direction:column;font-size:14px;max-height:420px;overflow:auto;border:1px solid var(--line);border-radius:6px}
+.citem{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px;padding:7px 10px;border-top:1px solid var(--line)}
+.citem:first-child{border-top:0}
+.citem .f{font-family:var(--f-script);font-weight:700}
+.citem .lv{font-size:11px;color:var(--muted)}
+.drop{border:1.5px dashed var(--line);border-radius:6px;padding:14px;text-align:center;color:var(--muted);font-size:13px}
+.drop.over{border-color:var(--accent);color:var(--accent)}
+@media (max-width:520px){.citem{grid-template-columns:1fr;gap:2px}.prompt{font-size:19px}.prompt.en{font-size:21px}}
+#toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(18px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--paper);padding:9px 16px;border-radius:6px;font-size:14px;max-width:calc(100% - 32px);z-index:5}
+@media (prefers-reduced-motion:reduce){.bar i{transition:none}}
+body{margin:0;padding-top:env(safe-area-inset-top,0px)}
+[hidden]{display:none!important}
+.recwrap{display:flex;align-items:center;gap:14px}
+.rec{all:unset;cursor:pointer;width:72px;height:72px;border-radius:50%;display:grid;place-items:center;background:var(--bad);color:#fff;flex:none;box-shadow:0 3px 0 rgba(0,0,0,.18)}
+.rec svg{width:34px;height:34px}
+.rec[disabled]{opacity:.4;cursor:default}
+.rec.on{animation:pulse 1.2s ease-in-out infinite}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 var(--bad-soft)}50%{box-shadow:0 0 0 14px var(--bad-soft)}}
+@media (prefers-reduced-motion:reduce){.rec.on{animation:none;outline:4px solid var(--bad-soft)}}
+</style></head><body>
+
+<div id="app"></div>
+<div id="toast" hidden></div>
+
+<script>
+const IV=[0,1,2,4,7,15,30];
+const LESSON_LEN=10;
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const inl=s=>esc(s).replace(/\*\*(.+?)\*\*/g,'<b>$1</b>').replace(/\*(.+?)\*/g,'<i>$1</i>').replace(/`(.+?)`/g,'<code>$1</code>');
+const strip=s=>String(s??'').replace(/\*\*|\*|`/g,'').trim();
+const isEn=s=>(String(s).match(/[A-Za-z]/g)||[]).length>(String(s).match(/[가-힣]/g)||[]).length;
+function hash(s){let h=5381;for(let i=0;i<s.length;i++)h=((h<<5)+h+s.charCodeAt(i))|0;return (h>>>0).toString(36)}
+function ymd(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
+const today=()=>ymd(new Date());
+function addDays(n,from){const d=from?new Date(from+'T12:00'):new Date();d.setDate(d.getDate()+n);return ymd(d)}
+function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
+const pick=a=>a[Math.floor(Math.random()*a.length)];
+function lsGet(k){try{return JSON.parse(localStorage.getItem('shadow.'+k))}catch(e){return null}}
+function lsSet(k,v){try{localStorage.setItem('shadow.'+k,JSON.stringify(v))}catch(e){}}
+const ICON={
+  speak:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4z" fill="currentColor"/><path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/></svg>',
+  slow:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4z" fill="currentColor"/><path d="M15.5 9.5a3.5 3.5 0 0 1 0 5"/></svg>',
+  mic:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3" fill="currentColor"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>',
+  mix:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 6h16M4 12h10M4 18h13"/></svg>',
+  ear:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M6 9a6 6 0 1 1 12 0c0 3-2 4-3 5.5S14 18 12 19.5 7.5 20 7 17.5"/><path d="M9.5 9.5a2.5 2.5 0 0 1 5 0c0 1.5-1.5 2-1.5 3"/></svg>',
+  mouth:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 12c3-4 6-5 9-3 3-2 6-1 9 3-3 5-6 6-9 6s-6-1-9-6z"/><path d="M3 12h18"/></svg>'
+};
+
+/* ---------- markdown note → cards + quiz ---------- */
+function cells(line){return line.trim().replace(/^\|/,'').replace(/\|$/,'').split('|').map(c=>c.trim())}
+function parseNote(md){
+  const L=String(md).replace(/\r/g,'').split('\n');
+  const cards=[],quiz=[],ans={};let h2='',h3='',inQuiz=false,m;
+  const sec=()=>h3?h2+' · '+h3:h2;
+  for(let i=0;i<L.length;i++){
+    const line=L[i];
+    if((m=line.match(/^##\s+(.*)/))){h2=strip(m[1]).replace(/^[^\w가-힣]+/,'');h3='';inQuiz=/퀴즈/.test(h2);continue}
+    if((m=line.match(/^###\s+(.*)/))){
+      const title=m[1].trim();let j=i+1;const body=[];
+      while(j<L.length&&!/^#{1,3}\s/.test(L[j])&&!/^---\s*$/.test(L[j])){body.push(L[j]);j++}
+      const mean=body.find(b=>/^\s*-\s*\*\*뜻\*\*/.test(b));
+      if(mean){
+        const extras=[];
+        for(const b of body){
+          if(!b.trim()||b===mean)continue;
+          const bm=b.match(/^\s*-\s*\*\*(.+?)\*\*\s*[:：]\s*(.*)/);
+          if(bm)extras.push([bm[1],bm[2]]);
+          else if(/^\s*-\s+/.test(b))extras.push(['메모',b.replace(/^\s*-\s+/,'')]);
+        }
+        cards.push({front:strip(title),back:mean.replace(/^\s*-\s*\*\*뜻\*\*\s*[:：]\s*/,''),extras,sec:h2});
+        i=j-1;continue;
+      }
+      h3=strip(title).replace(/^[^\w가-힣]+/,'');continue;
+    }
+    if(/^\s*\|/.test(line)&&L[i+1]&&/^\s*\|?\s*:?-{2,}/.test(L[i+1])){
+      const head=cells(line);let j=i+2;const rows=[];
+      while(j<L.length&&/^\s*\|/.test(L[j])){rows.push(cells(L[j]));j++}
+      i=j-1;
+      const pair=head.length>=3&&/차이/.test(head[2]);
+      const ko=/한국어/.test(head[0]);
+      for(const r of rows){
+        if(!r[0])continue;
+        if(pair)cards.push({front:strip(r[0])+'  vs  '+strip(r[1]),back:r[2]||'—',extras:[],sec:sec(),kind:'pair'});
+        else cards.push({front:strip(r[0]),back:r[1]||'',extras:head.slice(2).map((h,k)=>[h,r[k+2]||'']).filter(x=>x[1]),sec:sec(),kind:ko?'ko':''});
+      }
+      continue;
+    }
+    if(inQuiz){
+      const qm=line.match(/^(\d+)\.\s+(.*_{2,}.*)$/);
+      if(qm){quiz.push({n:+qm[1],q:qm[2].trim(),sec:h2});continue}
+      if(/<summary>/.test(line)){
+        let j=i+1,txt='';
+        while(j<L.length&&!/<\/details>/.test(L[j])){txt+=' '+L[j];j++}
+        i=j;
+        const re=/(\d+)\.\s*(.+?)(?=\s*·?\s*\d+\.\s|\s*$)/g;let a;
+        while((a=re.exec(txt.trim())))ans[a[1]]=strip(a[2]).replace(/\s*·\s*$/,'');
+      }
+      continue;
+    }
+    if((m=line.match(/^\s*(?:\d+\.|-)\s+\*\*(.+?)\*\*\s*(?:—|–|-|:)\s*(.+)$/))){
+      const b=strip(m[1]);const eq=b.split(/\s+=\s+/);
+      if(eq.length>1)cards.push({front:eq[0],back:eq.slice(1).join(' = '),extras:[['예문',m[2]]],sec:sec()});
+      else cards.push({front:b,back:m[2],extras:[],sec:sec()});
+      continue;
+    }
+    if((m=line.match(/^\*\*(.+?)\*\*\s*[:：]\s*(.+)$/)))cards.push({front:strip(m[1]),back:m[2],extras:[],sec:sec()});
+  }
+  quiz.forEach(q=>q.a=ans[q.n]||'');
+  return {cards,quiz};
+}
+/* the English line to hear/say, and the Korean meaning to show */
+function engText(c){
+  if(c.kind==='pair')return '';
+  let s=strip(c.kind==='ko'?c.back:c.front);
+  s=s.replace(/\([^)]*[가-힣][^)]*\)/g,' ');
+  if(c.kind==='ko')s=s.split(/[\/,]/)[0];
+  s=s.split('→').pop().replace(/[()]/g,'').replace(/^[…\.\s"]+|[…\s",]+$/g,'').replace(/\s+/g,' ').trim();
+  return /[가-힣]/.test(s)?'':s;
+}
+function meanText(c){
+  const s=c.kind==='ko'?strip(c.front):strip(c.back).replace(/\(※[^)]*\)/g,'');
+  return s.replace(/\s+/g,' ').trim();
+}
+function buildNote(id,v){
+  const p=parseNote(v.md||'');
+  p.cards.forEach(c=>{c.note=id;c.id=hash(c.front+'|'+strip(c.back).slice(0,40));c.key=id+'/'+c.id;c.en=engText(c);c.ko=meanText(c);c.words=c.en?c.en.split(' ').length:0});
+  p.quiz.forEach((q,k)=>{q.note=id;q.key=id+'/q'+k});
+  return {id,title:v.title||'',label:v.label||v.title||id,date:v.date||'',md:v.md||'',cards:p.cards,quiz:p.quiz};
+}
+
+/* ---------- state ---------- */
+const S={notes:{},prog:{},stats:{days:{},goal:30},db:null,uid:null,loaded:false,status:'',
+  tab:lsGet('tab')||'home',src:'due',lesson:null,
+  fc:{deck:'due',dir:'fwd',queue:[],qi:0,flipped:false,started:false,done:{known:0,fuzzy:0,miss:0}},
+  openNote:null,confirmDel:null};
+const notesSorted=()=>Object.values(S.notes).sort((a,b)=>(b.date||'').localeCompare(a.date||'')||a.label.localeCompare(b.label));
+const allCards=()=>notesSorted().flatMap(n=>n.cards);
+function cardByKey(k){const[n,id]=k.split('/');return S.notes[n]?.cards.find(c=>c.id===id)}
+const getP=c=>S.prog[c.note]?.cards?.[c.id]||null;
+const isDue=c=>{const p=getP(c);return !p||p.d<=today()};
+const srcCards=src=>src==='due'?allCards():allCards().filter(c=>c.note===src);
+function shortDate(d){const m=String(d).match(/\d{4}-(\d{2})-(\d{2})/);return m?m[1]+'/'+m[2]:''}
+
+/* ---------- saving ---------- */
+const dirty=new Set();let saveT=null,saving=false;
+function setP(c,v){(S.prog[c.note]??={cards:{}}).cards??={};S.prog[c.note].cards[c.id]=v;dirty.add(c.note);queueSave()}
+function queueSave(){clearTimeout(saveT);saveT=setTimeout(flush,1200)}
+async function flush(){
+  if(saving){saveT=setTimeout(flush,800);return}
+  if(!dirty.size)return;
+  saving=true;const ids=[...dirty];dirty.clear();
+  if(S.db&&S.uid){
+    for(const n of ids){
+      try{
+        const ref=S.db.collection('data/users/'+S.uid).doc(n);
+        await ref.set(n==='stats'?{days:S.stats.days,goal:S.stats.goal}:{cards:S.prog[n]?.cards||{}});
+      }catch(e){toast('학습 기록을 저장하지 못했어요. 페이지를 새로 열어 주세요.')}
+    }
+  }else{lsSet('prog',S.prog);lsSet('stats',S.stats)}
+  saving=false;
+}
+document.addEventListener('visibilitychange',()=>{if(document.hidden)flush()});
+function grow(c,ok){
+  const p=getP(c)||{b:0};let b=p.b||0;
+  if(ok){b=Math.min(b+1,IV.length-1);setP(c,{b,d:addDays(IV[b])})}
+  else setP(c,{b:0,d:today()});
+}
+function addXP(n){S.stats.days[today()]=(S.stats.days[today()]||0)+n;dirty.add('stats');queueSave()}
+function streak(){
+  let d=S.stats.days[today()]?today():addDays(-1),n=0;
+  while(S.stats.days[d]>0){n++;d=addDays(-1,d)}
+  return n;
+}
+
+/* ---------- speech ---------- */
+const TTS='speechSynthesis' in window;
+let VOICE=null;
+function pickVoice(){try{const vs=speechSynthesis.getVoices().filter(v=>/^en[-_](US|GB)/i.test(v.lang));VOICE=vs.find(v=>/Samantha|Google US English|Aria|Jenny|Natural|Ava/i.test(v.name))||vs.find(v=>/^en[-_]US/i.test(v.lang))||vs[0]||null}catch(e){}}
+if(TTS){pickVoice();try{speechSynthesis.onvoiceschanged=pickVoice}catch(e){}}
+function say(text,slow){
+  if(!TTS||!text){toast('이 기기에서는 읽어 주기를 쓸 수 없어요.');return}
+  try{speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(text);u.lang=VOICE?.lang||'en-US';if(VOICE)u.voice=VOICE;u.rate=slow?.6:.92;speechSynthesis.speak(u)}
+  catch(e){toast('이 기기에서는 읽어 주기를 쓸 수 없어요.')}
+}
+
+/* ---------- lesson building ---------- */
+const LISTEN=['listen','dictate','arrangeEar'],SPEAKT=['shadow','sayIt'];
+function typesFor(c,mode){
+  const sent=c.words>=3&&c.words<=14;const t=[];
+  if(mode!=='speak'){
+    if(TTS)t.push('listen');
+    if(TTS&&sent&&(getP(c)?.b||0)>=1)t.push('dictate');
+    if(sent)t.push(mode==='listen'&&TTS?'arrangeEar':'arrange');
+    if(mode==='mix')t.push('choose');
+  }
+  if(mode!=='listen'){t.push('shadow');if((getP(c)?.b||0)>=1||mode==='speak')t.push('sayIt')}
+  return t.length?t:['choose'];
+}
+function buildLesson(mode,src){
+  let pool=srcCards(src).filter(c=>c.en);
+  if(!pool.length)return null;
+  const t=today();
+  const rank=c=>{const p=getP(c);return !p?1:p.d<=t?0:2+(p.b||0)};
+  pool=shuffle(pool).sort((a,b)=>rank(a)-rank(b));
+  const quizzes=mode==='speak'?[]:shuffle(notesSorted().filter(n=>src==='due'||n.id===src).flatMap(n=>n.quiz).filter(q=>q.a)).slice(0,2);
+  const nCards=Math.min(pool.length,LESSON_LEN-quizzes.length);
+  const items=[];const used={};
+  for(const c of pool.slice(0,nCards)){
+    let ts=typesFor(c,mode);
+    const fresh=ts.filter(x=>(used[x]||0)<Math.ceil(LESSON_LEN/3));
+    const type=pick(fresh.length?fresh:ts);used[type]=(used[type]||0)+1;
+    items.push(makeItem(type,c,pool));
+  }
+  quizzes.forEach(q=>items.splice(Math.floor(Math.random()*(items.length+1)),0,{type:'cloze',q}));
+  return {mode,src,items,i:0,st:fresh(),xp:0,firstOk:0,firstTotal:items.length,graded:new Set(),requeued:new Set()};
+}
+function fresh(){return {sel:null,tiles:[],typed:'',revealed:false,result:null,said:0}}
+function makeItem(type,c,pool){
+  const it={type,c};
+  if(type==='listen'||type==='choose'){
+    const field=type==='listen'?'ko':'en';
+    const others=shuffle(allCards().filter(x=>x!==c&&x[field]&&x[field]!==c[field]&&x.en));
+    const seen=new Set([c[field]]);const opts=[c];
+    for(const x of others){if(opts.length>=4)break;if(!seen.has(x[field])){seen.add(x[field]);opts.push(x)}}
+    it.opts=shuffle(opts);it.field=field;
+  }
+  if(type==='arrange'||type==='arrangeEar'){
+    const words=c.en.split(' ');
+    const extra=shuffle(allCards().filter(x=>x!==c&&x.words>=2).flatMap(x=>x.en.split(' ')).filter(w=>!words.some(v=>normE(v)===normE(w))&&normE(w).length>2)).slice(0,2);
+    it.bank=shuffle([...words,...extra].map((w,k)=>({w,k})));
+  }
+  return it;
+}
+/* spoken input arrives as "I am"/"2 minutes" as often as "I'm"/"two minutes", so compare in one expanded form */
+const NUM=['zero','one','two','three','four','five','six','seven','eight','nine','ten','eleven','twelve','thirteen','fourteen','fifteen','sixteen','seventeen','eighteen','nineteen','twenty'];
+const normE=s=>String(s).toLowerCase().replace(/[’‘]/g,"'")
+  .replace(/\bcan't\b/g,'can not').replace(/\bwon't\b/g,'will not').replace(/n't\b/g,' not').replace(/'re\b/g,' are').replace(/'m\b/g,' am')
+  .replace(/'ll\b/g,' will').replace(/'ve\b/g,' have').replace(/'d\b/g,' would').replace(/\b(it|that|what|there|he|she|who)'s been\b/g,'$1 has been').replace(/\b(it|that|what|there|here|he|she|who|where|how)'s\b/g,'$1 is')
+  .replace(/\b\d{1,2}\b/g,d=>NUM[+d]||d).replace(/\bcannot\b/g,'can not').replace(/\bok\b/g,'okay')
+  .replace(/[^a-z0-9' ]+/g,' ').replace(/'/g,'').replace(/\s+/g,' ').trim();
+function wordDiff(said,target){
+  const a=normE(said).split(' ').filter(Boolean),b=normE(target).split(' ').filter(Boolean);
+  const d=lev(a,b);
+  return {exact:d===0,close:d<=Math.floor(b.length*.2)};
+}
+function diffHtml(target,said){
+  const have=new Set(normE(said).split(' '));
+  return target.split(' ').map(w=>{const parts=normE(w).split(' ').filter(Boolean);return !parts.length||parts.every(p=>have.has(p)||(p==='is'&&have.has('has')))?esc(w):`<u class="miss">${esc(w)}</u>`}).join(' ');
+}
+const normK=s=>String(s).toLowerCase().replace(/[’‘]/g,"'").replace(/[^a-z0-9가-힣' ]+/g,' ').replace(/\s+/g,' ').trim();
+function lev(a,b){const m=a.length,n=b.length;let p=Array.from({length:n+1},(_,j)=>j);for(let i=1;i<=m;i++){const q=[i];for(let j=1;j<=n;j++)q[j]=Math.min(p[j]+1,q[j-1]+1,p[j-1]+(a[i-1]===b[j-1]?0:1));p=q}return p[n]}
+
+/* ---------- lesson flow ---------- */
+const curItem=()=>S.lesson?.items[S.lesson.i];
+function startLesson(mode){
+  const L=buildLesson(mode,S.src);
+  if(!L){toast('레슨으로 만들 영어 표현이 없어요. 노트를 먼저 올려 주세요.');return}
+  S.lesson=L;render();autoPlay();
+}
+function autoPlay(){const it=curItem();if(it&&['listen','dictate','arrangeEar','shadow'].includes(it.type))say(it.c.en)}
+function canCheck(){
+  const it=curItem(),st=S.lesson.st;
+  if(['listen','choose'].includes(it.type))return st.sel!=null;
+  if(it.type.startsWith('arrange'))return st.tiles.length>0;
+  if(['dictate','cloze','shadow','sayIt'].includes(it.type))return st.typed.trim().length>0;
+  return false;
+}
+function check(){
+  const it=curItem(),st=S.lesson.st;if(st.result||!canCheck())return;
+  let ok=false,close=false;
+  if(['listen','choose'].includes(it.type))ok=it.opts[st.sel]===it.c;
+  else if(it.type.startsWith('arrange'))ok=normE(st.tiles.map(k=>it.bank.find(b=>b.k===k).w).join(' '))===normE(it.c.en);
+  else if(['dictate','shadow','sayIt'].includes(it.type)){const m=wordDiff(st.typed,it.c.en);ok=m.close;close=ok&&!m.exact}
+  else if(it.type==='cloze')ok=normK(st.typed)===normK(it.q.a);
+  finish(ok,close);
+}
+function finish(ok,close){
+  const L=S.lesson,it=curItem();
+  L.st.result=ok?(close?'close':'ok'):'no';
+  const key=(it.c?.key||it.q.key)+':'+it.type;
+  const first=!L.requeued.has(key);
+  if(first&&ok){L.firstOk++;L.xp+=2}
+  if(it.c&&!L.graded.has(it.c.key)){L.graded.add(it.c.key);grow(it.c,ok)}
+  L.st.first=first;L.st.pushed=false;
+  if(!ok&&first){L.requeued.add(key);L.items.push(it.type==='cloze'?{...it}:makeItem(it.type,it.c));L.st.pushed=true}
+  render();
+  if(it.c&&(!ok||!['listen','dictate','shadow'].includes(it.type)))say(it.c.en);
+  if(it.type==='cloze'&&ok)say(fillCloze(it.q));
+}
+/* the phone mis-heard a correct answer: undo the miss */
+function override(){
+  const L=S.lesson,st=L.st,it=curItem();if(st.result!=='no')return;
+  if(st.pushed)L.items.pop();
+  if(st.first){L.firstOk++;L.xp+=2}
+  if(it.c)grow(it.c,true);
+  st.result='ok';render();
+}
+function next(){
+  stopRec();const L=S.lesson;L.i++;L.st=fresh();
+  if(L.i>=L.items.length){L.done=true;L.xp+=5;addXP(L.xp);flush()}
+  render();if(!L.done)autoPlay();
+}
+function fillCloze(q){const parts=q.a.split(/\s*,\s*/);let i=0;return q.q.replace(/\([^)]*\)/g,'').replace(/(_{2,}\s*)+/g,m=>{const k=(m.match(/_{2,}/g)||[]).length;const w=parts.length>=k?parts.slice(i,i+k).join(' '):q.a;i+=k;return w+' '}).replace(/\s+/g,' ').trim()}
+
+/* ---------- recording (browser speech recognition) ---------- */
+const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+let REC=null;
+function stopRec(){if(REC){const r=REC;REC=null;try{r.abort()}catch(e){}}}
+function toggleRec(){
+  const L=S.lesson;if(!L||L.st.result)return;
+  if(REC){try{REC.stop()}catch(e){}return}
+  if(!SR){toast('이 브라우저에서는 음성 인식이 안 돼요. 크롬으로 열어 주세요.');return}
+  try{speechSynthesis.cancel()}catch(e){}
+  const it=curItem(),idx=L.i,target=it.c?it.c.en:it.q.a;
+  const r=new SR();r.lang='en-US';r.interimResults=true;r.maxAlternatives=5;r.continuous=false;
+  REC=r;L.st.listening=true;L.st.typed='';render();
+  let fin='';
+  r.onresult=e=>{
+    let interim='';
+    for(let i=e.resultIndex;i<e.results.length;i++){
+      const res=e.results[i];
+      if(res.isFinal){
+        /* of the phone's guesses, keep the one closest to the target sentence */
+        let best=res[0].transcript,bd=1e9;
+        for(let k=0;k<res.length;k++){const t=res[k].transcript,d=lev(normE(t).split(' '),normE(target).split(' '));if(d<bd){bd=d;best=t}}
+        fin+=(fin?' ':'')+best.trim();
+      }else interim+=res[0].transcript;
+    }
+    L.st.typed=(fin+' '+interim).trim();
+    const ta=$('#typeIn');if(ta)ta.value=L.st.typed;
+  };
+  r.onerror=e=>{const m={'not-allowed':'마이크 사용을 허용해 주세요. 주소창 왼쪽 아이콘 → 권한 → 마이크 → 허용','service-not-allowed':'마이크 사용을 허용해 주세요.','no-speech':'소리가 안 들렸어요. 버튼을 다시 누르고 말해 주세요.','audio-capture':'마이크를 찾지 못했어요.','network':'음성 인식은 인터넷이 연결돼 있어야 해요.'}[e.error];if(m)toast(m)};
+  r.onend=()=>{
+    if(REC===r)REC=null;
+    if(S.lesson!==L||L.i!==idx)return;
+    L.st.listening=false;
+    if(L.st.typed.trim()&&!L.st.result)check();else render();
+  };
+  try{r.start()}catch(e){REC=null;L.st.listening=false;render();toast('녹음을 시작하지 못했어요.')}
+}
+
+/* ---------- views ---------- */
+function shell(inner){
+  const cards=allCards();
+  return `<div class="wrap">
+  <header><h1><small>영어공부 · 쉐도잉 노트</small>쉐도잉 복습장</h1>
+    <div class="stats"><div class="stat hot"><b>${streak()}일</b><span>연속 학습</span></div>
+    <div class="stat"><b>${cards.filter(isDue).length}</b><span>오늘 볼 카드</span></div>
+    <div class="stat"><b>${cards.filter(c=>(getP(c)?.b||0)>=4).length}/${cards.length}</b><span>익힌 카드</span></div></div></header>
+  <nav role="tablist">${[['home','레슨'],['cards','카드'],['notes','노트']].map(([k,v])=>`<button role="tab" data-tab="${k}" aria-selected="${S.tab===k}">${v}</button>`).join('')}</nav>
+  ${S.status||!S.loaded?`<div class="status">${esc(S.status||'노트를 불러오는 중이에요…')}</div>`:''}
+  ${inner}</div>`;
+}
+function srcChips(cur,act){
+  const notes=notesSorted();const due=allCards().filter(isDue).length;
+  return `<div class="chips"><button class="chip" data-act="${act}" data-v="due" aria-pressed="${cur==='due'}">오늘 복습할 것 · ${due}</button>
+  ${notes.map(n=>`<button class="chip" data-act="${act}" data-v="${esc(n.id)}" aria-pressed="${cur===n.id}">${esc(shortDate(n.date))} ${esc(n.label)}</button>`).join('')}</div>`;
+}
+function viewHome(){
+  if(!Object.keys(S.notes).length)return `<div class="panel empty"><b>아직 노트가 없어요</b>노트 탭에서 영어 표현 .md 파일을 올리면 레슨이 만들어져요.</div>`;
+  const xp=S.stats.days[today()]||0,goal=S.stats.goal||30;
+  const days=[...Array(7)].map((_,k)=>addDays(k-6));
+  const mx=Math.max(goal,...days.map(d=>S.stats.days[d]||0));
+  const wk=['일','월','화','수','목','금','토'];
+  return `<div class="panel"><div class="today">
+      <div class="ring" style="--p:${Math.min(100,xp/goal*100)}"><div><b>${xp}</b><span>/ ${goal} XP</span></div></div>
+      <div style="display:flex;flex-direction:column;gap:8px;min-width:0">
+        <h2>${xp>=goal?'오늘 목표 달성':'오늘 목표까지 '+(goal-xp)+' XP'}</h2>
+        <div class="week">${days.map(d=>{const v=S.stats.days[d]||0;return `<div><i class="${v?'':'zero'}" style="height:${Math.max(3,v/mx*44)}px"></i>${wk[new Date(d+'T12:00').getDay()]}</div>`}).join('')}</div>
+      </div></div>
+      <div class="row"><span class="hint">하루 목표</span><div class="seg">${[20,30,50].map(g=>`<button data-act="goal" data-v="${g}" aria-pressed="${goal===g}">${g} XP</button>`).join('')}</div></div>
+  </div>
+  <div style="display:flex;flex-direction:column;gap:8px"><h2>무엇으로 공부할까요</h2>${srcChips(S.src,'src')}</div>
+  <div class="starts">
+    <button class="start main" data-act="lesson" data-v="mix"><span class="ic">${ICON.mix}</span><div><b>레슨 시작</b><span>듣기 · 말하기 · 고르기 · 배열 섞어서 ${LESSON_LEN}문제</span></div><span>›</span></button>
+    <button class="start" data-act="lesson" data-v="listen"><span class="ic">${ICON.ear}</span><div><b>듣기 집중</b><span>듣고 뜻 고르기 · 듣고 받아쓰기 · 듣고 배열하기</span></div><span>›</span></button>
+    <button class="start" data-act="lesson" data-v="speak"><span class="ic">${ICON.mouth}</span><div><b>말하기 집중</b><span>들은 대로 따라 말하기 · 뜻 보고 영어로 말하기</span></div><span>›</span></button>
+  </div>
+  <p class="hint">말하기·받아쓰기·빈칸 문제는 빨간 녹음 버튼을 누르고 영어로 말하면 앱이 알아듣고 채점해요. 놓친 단어에는 밑줄이 그어져요. 처음 한 번은 마이크 사용을 허용해 주세요.${TTS?'':' 이 기기에서는 읽어 주기가 안 돼서 듣기 문제가 빠져요.'}</p>`;
+}
+const micInput=st=>`<div class="recwrap"><button class="rec ${st.listening?'on':''}" data-act="rec" aria-label="녹음" ${st.result?'disabled':''}>${ICON.mic}</button><span class="hint">${st.listening?'듣고 있어요. 말이 끝나면 바로 채점해요.':'빨간 버튼을 누르고 영어로 말하세요'}</span></div><textarea id="typeIn" class="en" rows="2" placeholder="말한 내용이 여기에 적혀요 (직접 고쳐도 돼요)" autocomplete="off" autocapitalize="off" spellcheck="false" ${st.result?'disabled':''}>${esc(st.typed)}</textarea>`;
+const playBtns=(big)=>`<div class="play"><button class="pbtn ${big?'big':'mid'}" data-act="say" aria-label="듣기">${ICON.speak}</button><button class="pbtn mid slow" data-act="saySlow" aria-label="천천히 듣기">${ICON.slow}</button></div>`;
+function viewLesson(){
+  const L=S.lesson;
+  if(L.done){
+    const acc=Math.round(L.firstOk/L.firstTotal*100);
+    return `<div class="lesson"><div class="result">
+      <h2>레슨 끝</h2><div class="hint">${esc(L.src==='due'?'오늘 복습할 것':S.notes[L.src]?.label||'')}</div>
+      <div class="rgrid"><div><b>+${L.xp}</b><span>XP</span></div><div><b>${acc}%</b><span>한 번에 맞힘</span></div><div><b>${streak()}일</b><span>연속 학습</span></div></div>
+      <div class="hint">오늘 ${S.stats.days[today()]||0} / ${S.stats.goal} XP</div>
+    </div></div>
+    <div class="foot"><div class="in"><div class="acts two"><button class="btn" data-act="exit">홈으로</button><button class="btn primary" data-act="lesson" data-v="${L.mode}">한 번 더</button></div></div></div>`;
+  }
+  const it=curItem(),st=L.st,c=it.c;
+  const pct=L.i/L.items.length*100;
+  let ask='',body='';
+  const slug=c?`<div class="slug">${esc(shortDate(S.notes[c.note]?.date))} — ${esc(c.sec)}</div>`:'';
+  const optBtns=(field)=>`<div class="opts">${it.opts.map((o,k)=>{
+      let cls='';if(st.result){if(o===c)cls='right';else if(st.sel===k)cls='wrong'}
+      return `<button class="opt ${field==='en'?'en':''} ${cls}" data-act="sel" data-v="${k}" aria-pressed="${st.sel===k}" ${st.result?'disabled':''}><span class="n">${k+1}</span><span>${esc(o[field])}</span></button>`}).join('')}</div>`;
+  if(it.type==='listen'){ask='듣고 뜻을 고르세요';body=playBtns(true)+optBtns('ko')}
+  else if(it.type==='choose'){ask='이 뜻에 맞는 영어를 고르세요';body=`<div class="prompt"><span class="hl">${esc(c.ko)}</span></div>`+optBtns('en')}
+  else if(it.type==='arrange'||it.type==='arrangeEar'){
+    ask=it.type==='arrange'?'영어로 옮겨 보세요':'들은 문장을 순서대로 놓으세요';
+    body=(it.type==='arrange'?`<div class="row" style="justify-content:flex-start;flex-wrap:nowrap;gap:12px"><button class="pbtn mid" data-act="say" aria-label="듣기">${ICON.speak}</button><div class="prompt"><span class="hl">${esc(c.ko)}</span></div></div>`:playBtns(true))+
+    `<div class="answer">${st.tiles.map(k=>`<button class="tile" data-act="untile" data-v="${k}" ${st.result?'disabled':''}>${esc(it.bank.find(b=>b.k===k).w)}</button>`).join('')}</div>
+     <div class="bank">${it.bank.map(b=>`<button class="tile ${st.tiles.includes(b.k)?'used':''}" data-act="tile" data-v="${b.k}" ${st.result?'disabled':''}>${esc(b.w)}</button>`).join('')}</div>`;
+  }
+  else if(it.type==='dictate'){ask='들은 문장을 그대로 말하거나 쓰세요';body=playBtns(true)+micInput(st)}
+  else if(it.type==='cloze'){
+    const q=it.q,n=S.notes[q.note];
+    ask='빈칸을 채우세요';
+    body=`<div class="slug">${esc(shortDate(n?.date))} — 셀프 퀴즈 ${q.n}번</div><div class="prompt en">${esc(q.q).replace(/(_{2,}\s*)+/g,'<span class="hl">　　　</span> ')}</div>
+    ${micInput(st)}`;
+  }
+  else if(it.type==='shadow'){
+    ask='듣고 따라 말하세요';
+    body=`${playBtns(true)}<div class="prompt en">${esc(c.en)}</div><div class="hint">${esc(c.ko)}</div>${micInput(st)}`;
+  }
+  else if(it.type==='sayIt'){
+    ask='이 뜻을 영어로 말하세요';
+    body=`<div class="prompt"><span class="hl">${esc(c.ko)}</span></div>${micInput(st)}`;
+  }
+  const res=st.result;
+  let foot='';
+  if(res){
+    const right=c?c.en:fillCloze(it.q);
+    const spoken=['dictate','shadow','sayIt'].includes(it.type)&&st.typed.trim();
+    const rightHtml=spoken&&res!=='ok'?diffHtml(right,st.typed):esc(right);
+    const heard=spoken&&res!=='ok'?`<span class="hint">들린 말: ${esc(st.typed)}</span>`:'';
+    const msg=res==='no'?`<b>정답</b><span class="en">${rightHtml}</span>${c?`<span>${esc(c.ko)}</span>`:''}${heard}`
+      :`<b>${res==='close'?'거의 맞았어요':pick(['좋아요','맞았어요','잘했어요'])}</b>${res==='close'||['listen','dictate','sayIt'].includes(it.type)?`<span class="en">${rightHtml}</span>`:''}${c&&it.type==='listen'?`<span>${esc(c.ko)}</span>`:''}${heard}`;
+    const ov=res==='no'&&spoken?`<button class="btn" data-act="override">제대로 말했어요</button>`:'';
+    foot=`<div class="foot ${res==='no'?'no':'ok'}"><div class="in"><div class="msg">${msg}</div><div class="acts ${ov?'two':''}">${ov}<button class="btn primary" data-act="next">계속<kbd>Enter</kbd></button></div></div></div>`;
+  }else if(it.type==='shadow'||it.type==='sayIt'){
+    const sh=it.type==='shadow';
+    foot=`<div class="foot"><div class="in"><div class="acts two"><button class="btn" data-act="${sh?'skipOk':'skipNo'}">${sh?'입력 없이 넘어가기':'모르겠어요'}</button><button class="btn primary" data-act="check" ${canCheck()?'':'disabled'}>확인<kbd>Enter</kbd></button></div></div></div>`;
+  }else{
+    foot=`<div class="foot"><div class="in"><div class="acts"><button class="btn primary" data-act="check" ${canCheck()?'':'disabled'}>확인<kbd>Enter</kbd></button></div></div></div>`;
+  }
+  return `<div class="lesson"><div class="ltop"><button class="x" data-act="exit" aria-label="레슨 그만하기">×</button><div class="bar"><i style="width:${pct}%"></i></div><span class="meter">+${L.xp}</span></div>
+    <div class="ask">${ask}</div>${slug}${body}</div>${foot}`;
+}
+function viewCards(){
+  const F=S.fc;let h=`<div style="display:flex;flex-direction:column;gap:14px">${srcChips(F.deck,'deck')}
+  <div class="row"><div class="seg"><button data-act="dir" data-v="fwd" aria-pressed="${F.dir==='fwd'}">표현 → 뜻</button><button data-act="dir" data-v="rev" aria-pressed="${F.dir==='rev'}">뜻 → 표현</button></div>
+  <span class="meter">${Math.min(F.qi+1,F.queue.length)} / ${F.queue.length}</span></div>
+  <div class="bar"><i style="width:${F.queue.length?F.qi/F.queue.length*100:0}%"></i></div>`;
+  const c=F.queue[F.qi]?cardByKey(F.queue[F.qi]):null;
+  if(!Object.keys(S.notes).length)h+=`<div class="panel empty"><b>아직 노트가 없어요</b>노트 탭에서 .md 파일을 올려 주세요.</div>`;
+  else if(!F.queue.length)h+=`<div class="panel empty"><b>오늘 복습할 카드를 다 끝냈어요</b>위에서 노트를 골라 그 노트 전체를 다시 볼 수 있어요.</div>`;
+  else if(!c)h+=`<div class="panel"><b>이번 복습 끝 · 알았어 ${F.done.known} · 애매해 ${F.done.fuzzy} · 몰랐어 ${F.done.miss}</b><div><button class="btn primary small" data-act="again">다시 섞어서 보기</button></div></div>`;
+  else{
+    const rev=F.dir==='rev',q=rev?c.back:c.front,a=rev?c.front:c.back,p=getP(c);
+    h+=`<div class="stage" data-act="flip" tabindex="0"><div class="slug">${esc(shortDate(S.notes[c.note].date))} — ${esc(c.sec)} · ${p?'단계 '+p.b:'새 카드'}</div>
+      <div class="q ${isEn(q)?'en':''}"><span class="hl">${esc(strip(q))}</span></div>
+      ${F.flipped?`<div class="a"><div class="main">${inl(a)}</div>${c.extras.length?`<dl class="ex">${c.extras.map(([k,v])=>`<dt>${esc(k)}</dt><dd>${inl(v)}</dd>`).join('')}</dl>`:''}
+      ${c.en?`<button class="speak" data-act="fcsay">${ICON.speak}영어 듣기</button>`:''}</div>`:`<div class="hint">눌러서 뜻 보기 · 스페이스 키</div>`}</div>
+    <div class="grades">${[['1','몰랐어','var(--bad)'],['2','애매해','var(--warn)'],['3','알았어','var(--good)']].map(([k,t,col])=>`<button class="btn" style="color:${col}" data-act="fgrade" data-v="${k}" ${F.flipped?'':'disabled'}>${t}<kbd>${k}</kbd></button>`).join('')}</div>`;
+  }
+  return h+'</div>';
+}
+function buildFC(){const F=S.fc;let list=allCards();list=F.deck==='due'?list.filter(isDue):list.filter(c=>c.note===F.deck);F.queue=shuffle(list.map(c=>c.key));F.qi=0;F.flipped=false;F.started=false;F.done={known:0,fuzzy:0,miss:0}}
+function fgrade(g){
+  const F=S.fc,c=F.queue[F.qi]?cardByKey(F.queue[F.qi]):null;if(!c||!F.flipped)return;
+  const p=getP(c)||{b:0};let b=p.b||0;
+  if(g===3){b=Math.min(b+1,IV.length-1);setP(c,{b,d:addDays(IV[b])});F.done.known++}
+  else if(g===2){b=Math.max(b,1);setP(c,{b,d:addDays(1)});F.done.fuzzy++}
+  else{setP(c,{b:0,d:today()});F.done.miss++;F.queue.splice(Math.min(F.qi+4,F.queue.length),0,c.key)}
+  F.qi++;F.flipped=false;F.started=true;render();
+}
+function viewNotes(){
+  const notes=notesSorted();
+  let h=`<div style="display:flex;flex-direction:column;gap:14px"><div class="panel"><b>노트 추가</b>
+    <div class="drop" id="drop">.md 파일을 끌어다 놓거나 <label style="color:var(--accent);cursor:pointer;text-decoration:underline">파일 고르기<input id="fileIn" type="file" accept=".md,.markdown,.txt,text/markdown,text/plain" multiple hidden></label><br>같은 날짜·같은 제목 노트를 다시 올리면 새 내용으로 바뀌고, 학습 기록은 그대로 남아요.</div>
+    <textarea id="pasteIn" rows="3" placeholder="또는 노트 내용을 여기에 붙여넣기"></textarea>
+    <div><button class="btn small" data-act="addPaste">붙여넣은 내용 추가</button></div></div>
+    <input id="search" type="search" placeholder="표현이나 뜻으로 찾기"><div id="results"></div><div class="panel">`;
+  if(!notes.length)h+=`<div class="empty"><b>아직 노트가 없어요</b>위에서 첫 노트를 올려 주세요.</div>`;
+  for(const n of notes){
+    const good=n.cards.filter(c=>(getP(c)?.b||0)>=4).length,seen=n.cards.filter(c=>getP(c)).length;
+    h+=`<div class="note"><div><span class="date">${esc(n.date||'날짜 없음')}</span><h3>${esc(n.label)}</h3></div>
+      <div class="meter">카드 ${n.cards.length} · 퀴즈 ${n.quiz.length} · 본 카드 ${seen} · 익힌 카드 ${good}</div>
+      <div class="bar"><i style="width:${n.cards.length?good/n.cards.length*100:0}%"></i></div>
+      <div class="acts"><button class="btn small primary" data-act="study" data-v="${esc(n.id)}">이 노트로 레슨</button>
+      <button class="btn small" data-act="toggle" data-v="${esc(n.id)}">${S.openNote===n.id?'카드 닫기':'카드 보기'}</button>
+      ${S.confirmDel===n.id?`<button class="btn small danger" data-act="del" data-v="${esc(n.id)}">정말 지우기</button><button class="btn small" data-act="nodel">취소</button>`:`<button class="btn small danger" data-act="askdel" data-v="${esc(n.id)}">지우기</button>`}</div>
+      ${S.openNote===n.id?cardList(n.cards):''}</div>`;
+  }
+  return h+'</div></div>';
+}
+function cardList(cards){
+  if(!cards.length)return '<div class="hint">카드로 만들 표현을 찾지 못했어요.</div>';
+  return `<div class="clist">${cards.map(c=>{const p=getP(c);return `<div class="citem"><div><div class="f">${esc(c.front)}</div><div class="lv">${esc(c.sec)}${p?' · 단계 '+p.b:''}</div></div><div>${inl(c.back)}</div></div>`}).join('')}</div>`;
+}
+function renderResults(){
+  const box=$('#results');if(!box)return;const q=normK($('#search').value);
+  if(!q){box.innerHTML='';return}
+  const hits=allCards().filter(c=>normK(c.front+' '+c.back+' '+c.extras.map(x=>x[1]).join(' ')).includes(q)).slice(0,80);
+  box.innerHTML=hits.length?cardList(hits):'<div class="hint">찾는 표현이 없어요.</div>';
+}
+
+/* ---------- notes add/delete ---------- */
+function labelFromFile(name){return name.replace(/\.(md|markdown|txt)$/i,'').replace(/^\d{4}-\d{2}-\d{2}[_ -]*/,'').replace(/_/g,' ').trim()}
+async function addNote(md,fileName){
+  const title=strip((md.match(/^#\s+(.+)$/m)||[])[1]||'');
+  const date=((fileName||'')+' '+title+' '+md).match(/\d{4}-\d{2}-\d{2}/)?.[0]||today();
+  const label=(fileName&&labelFromFile(fileName))||title.replace(/\(?\d{4}-\d{2}-\d{2}\)?/,'').trim()||'영어 표현';
+  let id='n-'+date;const same=S.notes[id];
+  if(same&&same.label!==label&&same.title!==title)id+='-'+hash(label);
+  const v={title,label,date,md,addedAt:new Date().toISOString()};
+  const built=buildNote(id,v);
+  if(S.db){try{await S.db.collection('notes').doc(id).set(v)}catch(e){toast(e?.code==='quota_exceeded'?'저장 공간이 가득 찼어요. 오래된 노트를 지운 뒤 다시 올려 주세요.':'노트를 저장하지 못했어요 ('+(e?.code||'오류')+').');return}}
+  built.local=true;S.notes[id]=built;saveLocalNotes();
+  toast(`「${label}」 추가 · 카드 ${built.cards.length}장 · 퀴즈 ${built.quiz.length}문제`);
+  if(!S.fc.started)buildFC();render();
+}
+function saveLocalNotes(){const o={};for(const n of Object.values(S.notes))if(n.local)o[n.id]={title:n.title,label:n.label,date:n.date,md:n.md};lsSet('notes',o)}
+async function delNote(id){
+  if(S.db){try{await S.db.collection('notes').doc(id).delete();if(S.uid)await S.db.collection('data/users/'+S.uid).doc(id).delete()}catch(e){toast('지우지 못했어요.');return}}
+  const wasLocal=S.notes[id]?.local;delete S.notes[id];delete S.prog[id];
+  if(!wasLocal){const hd=lsGet('hidden')||[];hd.push(id);lsSet('hidden',hd)}
+  saveLocalNotes();lsSet('prog',S.prog);
+  S.confirmDel=null;if(S.src===id)S.src='due';if(S.fc.deck===id)S.fc.deck='due';buildFC();render();toast('노트를 지웠어요.');
+}
+async function readFiles(files){for(const f of files){try{await addNote(await f.text(),f.name)}catch(e){toast(f.name+' 파일을 읽지 못했어요.')}}}
+
+/* ---------- render + events ---------- */
+function render(){
+  const app=$('#app');
+  if(S.lesson){app.innerHTML=viewLesson();const t=$('#typeIn');if(t&&!S.lesson.st.result)t.focus({preventScroll:true});return}
+  app.innerHTML=shell(S.tab==='cards'?viewCards():S.tab==='notes'?viewNotes():viewHome());
+  if(S.tab==='notes')renderResults();
+}
+let tT=null;function toast(t){const e=$('#toast');e.textContent=t;e.hidden=false;clearTimeout(tT);tT=setTimeout(()=>e.hidden=true,3200)}
+
+document.addEventListener('click',e=>{
+  const t=e.target.closest('[data-act],[data-tab]');if(!t||t.disabled)return;
+  if(t.dataset.tab){S.tab=t.dataset.tab;lsSet('tab',S.tab);if(S.tab==='cards'&&!S.fc.queue.length)buildFC();render();return}
+  const v=t.dataset.v,L=S.lesson,it=curItem();
+  switch(t.dataset.act){
+    case 'src':S.src=v;render();break;
+    case 'goal':S.stats.goal=+v;dirty.add('stats');queueSave();render();break;
+    case 'lesson':startLesson(v);break;
+    case 'exit':stopRec();S.lesson=null;flush();render();break;
+    case 'say':say(it?.c?.en||(it?.q?fillCloze(it.q):''));break;
+    case 'saySlow':say(it?.c?.en,true);break;
+    case 'sel':L.st.sel=+v;render();if(it.type==='choose')say(it.opts[+v].en);break;
+    case 'tile':L.st.tiles.push(+v);render();break;
+    case 'untile':L.st.tiles=L.st.tiles.filter(k=>k!==+v);render();break;
+    case 'check':check();break;
+    case 'next':next();break;
+    case 'skipOk':finish(true);next();break;
+    case 'skipNo':finish(false);break;
+    case 'override':override();break;
+    case 'rec':toggleRec();break;
+    case 'deck':S.fc.deck=v;buildFC();render();break;
+    case 'dir':S.fc.dir=v;render();break;
+    case 'flip':if(!e.target.closest('.speak')){S.fc.flipped=!S.fc.flipped;render()}break;
+    case 'fgrade':fgrade(+v);break;
+    case 'fcsay':{const c=cardByKey(S.fc.queue[S.fc.qi]);if(c)say(c.en);break}
+    case 'again':buildFC();render();break;
+    case 'study':S.src=v;S.tab='home';render();window.scrollTo(0,0);break;
+    case 'toggle':S.openNote=S.openNote===v?null:v;render();break;
+    case 'askdel':S.confirmDel=v;render();break;
+    case 'nodel':S.confirmDel=null;render();break;
+    case 'del':delNote(v);break;
+    case 'addPaste':{const ta=$('#pasteIn');if(ta.value.trim()){addNote(ta.value,'');ta.value=''}else toast('붙여넣은 내용이 없어요.');break}
+  }
+});
+document.addEventListener('input',e=>{
+  if(e.target.id==='search')renderResults();
+  if(e.target.id==='typeIn'&&S.lesson){S.lesson.st.typed=e.target.value;const b=document.querySelector('[data-act="check"]');if(b)b.disabled=!canCheck()}
+});
+document.addEventListener('change',e=>{if(e.target.id==='fileIn'){readFiles([...e.target.files]);e.target.value=''}});
+document.addEventListener('dragover',e=>{const d=e.target.closest?.('#drop');if(d){e.preventDefault();d.classList.add('over')}});
+document.addEventListener('dragleave',e=>{e.target.closest?.('#drop')?.classList.remove('over')});
+document.addEventListener('drop',e=>{const d=e.target.closest?.('#drop');if(d){e.preventDefault();d.classList.remove('over');readFiles([...e.dataTransfer.files])}});
+document.addEventListener('keydown',e=>{
+  const typing=/INPUT|TEXTAREA/.test(document.activeElement?.tagName);
+  if(S.lesson&&!S.lesson.done){
+    const st=S.lesson.st,it=curItem();
+    if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();if(st.result)next();else check();return}
+    if(!typing&&!st.result&&['listen','choose'].includes(it.type)&&/^[1-4]$/.test(e.key)&&it.opts[+e.key-1]){st.sel=+e.key-1;render()}
+    return;
+  }
+  if(S.tab!=='cards'||typing)return;
+  if(e.key===' '||e.key==='Enter'){if(S.fc.queue[S.fc.qi]){e.preventDefault();S.fc.flipped=!S.fc.flipped;render()}}
+  else if(['1','2','3'].includes(e.key))fgrade(+e.key);
+});
+
+/* ---------- start ---------- */
+async function start(){
+  render();
+  let base={};
+  try{const r=await fetch('notes.json',{cache:'no-cache'});if(r.ok)base=(await r.json()).notes||{}}catch(e){}
+  const hidden=new Set(lsGet('hidden')||[]);
+  for(const id in base)if(!hidden.has(id))S.notes[id]=buildNote(id,base[id]);
+  const loc=lsGet('notes')||{};for(const id in loc){const b=buildNote(id,loc[id]);b.local=true;S.notes[id]=b}
+  S.prog=lsGet('prog')||{};S.stats=lsGet('stats')||S.stats;S.loaded=true;
+  buildFC();render();
+  try{navigator.storage?.persist?.()}catch(e){}
+}
+if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
+start();
+</script>
+</body></html>
