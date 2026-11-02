@@ -164,6 +164,10 @@ body{margin:0;padding-top:env(safe-area-inset-top,0px)}
 [hidden]{display:none!important}
 .kohint{font-size:17px;font-weight:500;color:var(--ink);border-left:3px solid var(--mark);padding-left:10px}
 .lnav{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.modal{position:fixed;inset:0;z-index:20;display:grid;place-items:center;background:rgba(10,14,25,.45);padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.modal .box{background:var(--card);border-radius:14px;padding:20px;width:100%;max-width:340px;display:flex;flex-direction:column;gap:10px}
+.modal .box b{font-size:17px}
+.modal .acts{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:6px}
 .match{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .mcol{display:flex;flex-direction:column;gap:8px;min-width:0}
 .mt{all:unset;box-sizing:border-box;cursor:pointer;min-height:54px;padding:8px 10px;border:1.5px solid var(--line);border-bottom-width:3px;border-radius:10px;background:var(--card);display:flex;align-items:center;justify-content:center;text-align:center;font-size:14px;line-height:1.35;overflow-wrap:anywhere}
@@ -189,7 +193,7 @@ body{margin:0;padding-top:env(safe-area-inset-top,0px)}
 
 <script>
 const IV=[0,1,2,4,7,15,30];
-const APP_VER='11.02-j';
+const APP_VER='11.02-k';
 const LESSON_LEN=10;          // cards per lesson
 const REVIEW_PER_LESSON=2;    // of those, due reviews when new cards remain
 /* progress counts only expressions a lesson can ask (cards with an English line) */
@@ -490,10 +494,11 @@ function lev(a,b){const m=a.length,n=b.length;let p=Array.from({length:n+1},(_,j
 /* ---------- lesson flow ---------- */
 const curItem=()=>S.lesson?.items[S.lesson.i];
 function startLesson(mode,fresh,practice){
-  if(!fresh&&!practice){const saved=loadLesson();if(saved&&saved.mode===mode){S.lesson=saved;render();autoPlay();return}}
+  if(!fresh&&!practice){const saved=loadLesson();if(saved&&saved.mode===mode){if(!S.lesson)pushIn();S.lesson=saved;render();autoPlay();return}}
   const L=buildLesson(mode,S.src,practice);
   if(!L){toast('레슨으로 만들 영어 표현이 없어요. 노트를 먼저 올려 주세요.');return}
   if(L.empty){S.allDone=true;render();toast('오늘 배울 새 표현과 복습할 표현을 다 했어요.');return}
+  if(!S.lesson)pushIn();
   S.allDone=false;S.lesson=L;render();autoPlay();
 }
 function autoPlay(){const it=curItem();if(it&&['listen','dictate','arrangeEar','shadow'].includes(it.type))say(it.c.en)}
@@ -847,7 +852,9 @@ async function readFiles(files){for(const f of files){try{await addNote(await f.
 function render(){
   const app=$('#app');
   if(S.lesson){saveLesson();app.innerHTML=viewLesson();const t=$('#typeIn');if(t&&!S.lesson.st.result&&!S.lesson.st.listening&&matchMedia('(pointer:fine)').matches)t.focus({preventScroll:true});return}
-  app.innerHTML=shell(S.tab==='cards'?viewCards():S.tab==='notes'?viewNotes():viewHome());
+  app.innerHTML=shell(S.tab==='cards'?viewCards():S.tab==='notes'?viewNotes():viewHome())+(EXITASK?`<div class="modal" role="dialog" aria-modal="true"><div class="box">
+    <b>이 앱을 종료할까요?</b><div class="hint">뒤로 가기를 한 번 더 누르면 종료돼요.</div>
+    <div class="acts"><button class="btn" data-act="stay">계속 공부하기</button><button class="btn primary" data-act="quit">종료</button></div></div></div>`:'');
   if(S.tab==='notes')renderResults();
 }
 let tT=null;function toast(t){const e=$('#toast');e.textContent=t;e.hidden=false;clearTimeout(tT);tT=setTimeout(()=>e.hidden=true,3200)}
@@ -855,7 +862,10 @@ let tT=null;function toast(t){const e=$('#toast');e.textContent=t;e.hidden=false
 document.addEventListener('click',e=>{
   if(NOCLICK){NOCLICK=false;return}
   const t=e.target.closest('[data-act],[data-tab]');if(!t||t.disabled)return;
-  if(t.dataset.tab){S.tab=t.dataset.tab;lsSet('tab',S.tab);if(S.tab==='cards'&&!S.fc.queue.length)buildFC();render();return}
+  if(t.dataset.tab){
+    const to=t.dataset.tab;
+    if(S.tab==='home'&&to!=='home')pushIn();else if(to==='home'&&S.tab!=='home')popIn();
+    S.tab=to;lsSet('tab',S.tab);if(S.tab==='cards'&&!S.fc.queue.length)buildFC();render();return}
   const v=t.dataset.v,L=S.lesson,it=curItem();
   switch(t.dataset.act){
     case 'src':S.src=v;render();break;
@@ -865,7 +875,9 @@ document.addEventListener('click',e=>{
     case 'lesson':startLesson(v,L?.done);break;
     case 'newlesson':lsSet('lesson',null);startLesson(v,true);break;
     case 'practice':startLesson('mix',true,true);break;
-    case 'exit':stopRec();S.lesson=null;flush();render();break;
+    case 'exit':stopRec();S.lesson=null;flush();popIn();render();break;
+    case 'stay':EXITASK=false;armGuard();render();break;
+    case 'quit':EXITASK=false;render();try{window.close()}catch(e){}setTimeout(()=>toast('뒤로 가기를 한 번 더 누르면 종료돼요.'),300);break;
     case 'say':say(it?.c?.en||(it?.q?fillCloze(it.q):''));break;
     case 'saySlow':say(it?.c?.en,true);break;
     case 'sel':L.st.sel=+v;render();if(it.type==='choose')say(it.opts[+v].en);break;
@@ -965,6 +977,21 @@ async function start(){
   try{navigator.storage?.persist?.()}catch(e){}
 }
 if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
+/* ---------- phone back button: close what's open inside the app, ask before leaving ---------- */
+let EXITASK=false,SKIPPOP=false;
+function pushIn(){try{history.pushState({app:'in'},'')}catch(e){}}
+function armGuard(){try{history.pushState({app:'guard'},'')}catch(e){}}
+/* an on-screen close used up the screen, so drop its history step too */
+function popIn(){if(history.state?.app==='in'){SKIPPOP=true;history.back()}}
+window.addEventListener('popstate',e=>{
+  if(SKIPPOP){SKIPPOP=false;return}
+  const at=e.state?.app;let closed=false;
+  if(S.lesson){stopRec();S.lesson=null;flush();closed=true}
+  else if(S.tab!=='home'){S.tab='home';lsSet('tab','home');closed=true}
+  if(at==='root'){if(closed)armGuard();else EXITASK=true}
+  render();
+});
+try{history.replaceState({app:'root'},'');armGuard();if(S.tab!=='home')pushIn()}catch(e){}
 start();
 </script>
 </body></html>
