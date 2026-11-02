@@ -189,7 +189,9 @@ body{margin:0;padding-top:env(safe-area-inset-top,0px)}
 
 <script>
 const IV=[0,1,2,4,7,15,30];
-const LESSON_LEN=10;
+const LESSON_LEN=10;          // cards per lesson
+const REVIEW_PER_LESSON=2;    // of those, due reviews when new cards remain
+const reviewCount=cs=>cs.filter(c=>{const p=getP(c);return p&&p.d<=today()}).length;
 const $=s=>document.querySelector(s);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const inl=s=>esc(s).replace(/\*\*(.+?)\*\*/g,'<b>$1</b>').replace(/\*(.+?)\*/g,'<i>$1</i>').replace(/`(.+?)`/g,'<code>$1</code>');
@@ -291,7 +293,7 @@ function meanText(c){
 function buildNote(id,v){
   v={...v,label:String(v.label||v.title||id).replace(/\s*쉐도잉\s*영어\s*표현\s*$/,'').trim()||v.label};
   const p=parseNote(v.md||'');
-  p.cards.forEach(c=>{c.note=id;c.id=hash(c.front+'|'+strip(c.back).slice(0,40));c.key=id+'/'+c.id;c.en=engText(c);c.ko=meanText(c);c.words=c.en?c.en.split(' ').length:0});
+  p.cards.forEach((c,i)=>{c.idx=i;c.note=id;c.id=hash(c.front+'|'+strip(c.back).slice(0,40));c.key=id+'/'+c.id;c.en=engText(c);c.ko=meanText(c);c.words=c.en?c.en.split(' ').length:0});
   p.quiz.forEach((q,k)=>{q.note=id;q.key=id+'/q'+k});
   return {id,title:v.title||'',label:v.label||v.title||id,date:v.date||'',md:v.md||'',cards:p.cards,quiz:p.quiz};
 }
@@ -389,17 +391,21 @@ const hasWords=(text,part)=>(' '+text+' ').includes(' '+part+' ');
 function buildLesson(mode,src){
   let pool=srcCards(src).filter(c=>c.en);
   if(!pool.length)return null;
+  /* move forward: a couple of due reviews, then new cards in note order (oldest note first, top to bottom) */
   const t=today();
-  const rank=c=>{const p=getP(c);return (!p?1:p.d<=t?0:2+(p.b||0))+recentPenalty(c.key)};
-  pool=shuffle(pool).sort((a,b)=>rank(a)-rank(b));
-  const quizzes=mode==='speak'?[]:shuffle(notesSorted().filter(n=>src==='due'||n.id===src).flatMap(n=>n.quiz).filter(q=>q.a&&!recentPenalty(q.key))).sort((a,b)=>(RECENT[a.key]||0)-(RECENT[b.key]||0)).slice(0,2);
+  const due=shuffle(pool.filter(c=>{const p=getP(c);return p&&p.d<=t})).sort((a,b)=>recentPenalty(a.key)-recentPenalty(b.key));
+  const neu=pool.filter(c=>!getP(c)).sort((a,b)=>(S.notes[a.note].date||'').localeCompare(S.notes[b.note].date||'')||a.note.localeCompare(b.note)||a.idx-b.idx);
+  const later=pool.filter(c=>{const p=getP(c);return p&&p.d>t}).sort((a,b)=>getP(a).d<getP(b).d?-1:1);
+  const nRev=neu.length?Math.min(REVIEW_PER_LESSON,due.length):due.length;
+  pool=[...due.slice(0,nRev),...neu,...due.slice(nRev),...later];
+  const quizzes=mode==='speak'?[]:shuffle(notesSorted().filter(n=>src==='due'||n.id===src).flatMap(n=>n.quiz).filter(q=>q.a&&!recentPenalty(q.key))).sort((a,b)=>(RECENT[a.key]||0)-(RECENT[b.key]||0)).slice(0,1);
   /* a card whose phrase is the same as a fill-in sentence's would just repeat it */
   const qText=quizzes.map(q=>normE(fillCloze(q))),qAns=quizzes.map(q=>normE(q.a.replace(/,/g,' '))).filter(a=>a.length>2);
   pool=pool.filter(c=>{const e=normE(c.en);return !qText.some(s=>hasWords(s,e)||hasWords(e,s))&&!qAns.some(a=>hasWords(e,a))});
   const wantMatch=mode==='mix';
-  const nCards=Math.min(pool.length,LESSON_LEN-quizzes.length-(wantMatch?1:0));
+  const nCards=Math.min(pool.length,LESSON_LEN);
   const items=[];const used={};
-  for(const c of pool.slice(0,nCards)){
+  for(const c of shuffle(pool.slice(0,nCards))){
     let ts=typesFor(c,mode);
     const fresh=ts.filter(x=>(used[x]||0)<Math.ceil(LESSON_LEN/3));
     const type=pick(fresh.length?fresh:ts);used[type]=(used[type]||0)+1;
@@ -408,9 +414,10 @@ function buildLesson(mode,src){
   quizzes.forEach(q=>items.splice(Math.floor(Math.random()*(items.length+1)),0,{type:'cloze',q}));
   if(wantMatch){
     /* pairs come from cards this lesson isn't already asking about */
-    const m=makeMatch(pool.slice(nCards));
+    /* pairs review cards already learned that this lesson isn't asking about */
+    const inLesson=new Set(pool.slice(0,nCards).map(c=>c.key));
+    const m=makeMatch(shuffle(srcCards(src).filter(c=>getP(c)&&!inLesson.has(c.key))));
     if(m)items.splice(Math.floor(items.length/2),0,m);
-    else if(pool[nCards])items.push(makeItem('choose',pool[nCards]));
   }
   markShown(items.flatMap(it=>it.type==='match'?it.pairs.map(c=>c.key):[it.c?it.c.key:it.q.key]));
   /* each exercise keeps its own answer state so the learner can step back through answered ones */
@@ -600,16 +607,17 @@ function shell(inner){
   return `<div class="wrap">
   <header><h1><small>영어공부 · 쉐도잉 노트</small>쉐도잉 복습장</h1>
     <div class="stats"><div class="stat hot"><b>${streak()}일</b><span>연속 학습</span></div>
-    <div class="stat"><b>${cards.filter(isDue).length}</b><span>오늘 볼 카드</span></div>
-    <div class="stat"><b>${cards.filter(c=>(getP(c)?.b||0)>=4).length}/${cards.length}</b><span>익힌 카드</span></div></div></header>
+    <div class="stat"><b>${cards.filter(c=>getP(c)).length}/${cards.length}</b><span>진도</span></div>
+    <div class="stat"><b>${reviewCount(cards)}</b><span>복습할 표현</span></div></div></header>
   <nav role="tablist">${[['home','레슨'],['cards','카드'],['notes','노트']].map(([k,v])=>`<button role="tab" data-tab="${k}" aria-selected="${S.tab===k}">${v}</button>`).join('')}</nav>
   ${S.status||!S.loaded?`<div class="status">${esc(S.status||'노트를 불러오는 중이에요…')}</div>`:''}
   ${inner}</div>`;
 }
 function srcChips(cur,act){
-  const notes=notesSorted();const due=allCards().filter(isDue).length;
-  return `<div class="chips"><button class="chip" data-act="${act}" data-v="due" aria-pressed="${cur==='due'}">전체 노트 · 오늘 볼 ${due}개</button>
-  ${notes.map(n=>`<button class="chip" data-act="${act}" data-v="${esc(n.id)}" aria-pressed="${cur===n.id}">${esc(shortDate(n.date))} ${esc(n.label)}</button>`).join('')}</div>`;
+  const notes=notesSorted(),all=allCards();
+  const prog=cs=>`${cs.filter(c=>getP(c)).length}/${cs.length}`;
+  return `<div class="chips"><button class="chip" data-act="${act}" data-v="due" aria-pressed="${cur==='due'}">전체 노트 · 진도 ${prog(all)}</button>
+  ${notes.map(n=>`<button class="chip" data-act="${act}" data-v="${esc(n.id)}" aria-pressed="${cur===n.id}">${esc(shortDate(n.date))} ${esc(n.label)} · ${prog(n.cards)}</button>`).join('')}</div>`;
 }
 function viewHome(){
   if(!Object.keys(S.notes).length)return `<div class="panel empty"><b>아직 노트가 없어요</b>노트 탭에서 영어 표현 .md 파일을 올리면 레슨이 만들어져요.</div>`;
@@ -626,9 +634,9 @@ function viewHome(){
       <div class="row"><span class="hint">하루 목표</span><div class="seg">${[20,30,50].map(g=>`<button data-act="goal" data-v="${g}" aria-pressed="${goal===g}">${g} XP</button>`).join('')}</div></div>
       <div class="row"><span class="hint">효과음</span><div class="seg"><button data-act="sfx" data-v="1" aria-pressed="${sfxOn()}">켜기</button><button data-act="sfx" data-v="0" aria-pressed="${!sfxOn()}">끄기</button></div></div>
   </div>
-  <div style="display:flex;flex-direction:column;gap:8px"><h2>어느 노트로 공부할까요</h2><div class="hint">평소엔 「전체 노트」를 고르세요. 볼 차례가 된 표현부터 나와요. 날짜를 고르면 그날 노트만 나와요.</div>${srcChips(S.src,'src')}</div>
+  <div style="display:flex;flex-direction:column;gap:8px"><h2>어느 노트로 공부할까요</h2><div class="hint">레슨마다 새 표현 ${LESSON_LEN-REVIEW_PER_LESSON}개를 노트 순서대로 배우고, 틀렸던 표현 ${REVIEW_PER_LESSON}개를 같이 복습해요. 날짜를 고르면 그날 노트만 나와요.</div>${srcChips(S.src,'src')}</div>
   <div class="starts">
-    <button class="start main" data-act="lesson" data-v="mix"><span class="ic">${ICON.mix}</span><div><b>레슨 시작</b><span>듣기 · 말하기 · 고르기 · 배열 섞어서 ${LESSON_LEN}문제</span></div><span>›</span></button>
+    <button class="start main" data-act="lesson" data-v="mix"><span class="ic">${ICON.mix}</span><div><b>레슨 시작</b><span>새 표현 ${LESSON_LEN-REVIEW_PER_LESSON}개 + 복습 ${REVIEW_PER_LESSON}개 · 듣기·말하기·배열 섞어서</span></div><span>›</span></button>
     <button class="start" data-act="lesson" data-v="listen"><span class="ic">${ICON.ear}</span><div><b>듣기 집중</b><span>듣고 뜻 고르기 · 듣고 받아쓰기 · 듣고 배열하기</span></div><span>›</span></button>
     <button class="start" data-act="lesson" data-v="speak"><span class="ic">${ICON.mouth}</span><div><b>말하기 집중</b><span>들은 대로 따라 말하기 · 뜻 보고 영어로 말하기</span></div><span>›</span></button>
   </div>
@@ -642,7 +650,7 @@ function viewLesson(){
     const acc=Math.round(L.firstOk/L.firstTotal*100);
     return `<div class="lesson"><div class="result">
       <h2>레슨 끝</h2><div class="hint">${esc(L.src==='due'?'오늘 복습할 것':S.notes[L.src]?.label||'')}</div>
-      <div class="rgrid"><div><b>+${L.xp}</b><span>XP</span></div><div><b>${acc}%</b><span>한 번에 맞힘</span></div><div><b>${L.best||0}</b><span>최고 연속 정답</span></div><div><b>${streak()}일</b><span>연속 학습</span></div></div>
+      <div class="rgrid"><div><b>+${L.xp}</b><span>XP</span></div><div><b>${acc}%</b><span>한 번에 맞힘</span></div><div><b>${L.best||0}</b><span>최고 연속 정답</span></div><div><b>${allCards().filter(c=>getP(c)).length}/${allCards().length}</b><span>진도</span></div></div>
       <div class="hint">${acc===100?'완벽해요. 하나도 안 틀렸어요.':acc>=80?'아주 좋아요.':acc>=50?'좋아요. 틀린 표현은 곧 다시 나와요.':'틀린 표현은 곧 다시 나와요. 천천히 해도 돼요.'}</div>
       <div class="hint">오늘 ${S.stats.days[today()]||0} / ${S.stats.goal} XP</div>
     </div></div>
