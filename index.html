@@ -159,6 +159,7 @@ dl.ex dd{margin:0;min-width:0;overflow-wrap:anywhere}
 @media (prefers-reduced-motion:reduce){.bar i{transition:none}}
 body{margin:0;padding-top:env(safe-area-inset-top,0px)}
 [hidden]{display:none!important}
+.lnav{display:flex;align-items:center;justify-content:space-between;gap:8px}
 .recwrap{display:flex;align-items:center;gap:14px}
 .rec{all:unset;cursor:pointer;width:72px;height:72px;border-radius:50%;display:grid;place-items:center;background:var(--bad);color:#fff;flex:none;box-shadow:0 3px 0 rgba(0,0,0,.18)}
 .rec svg{width:34px;height:34px}
@@ -363,7 +364,8 @@ function buildLesson(mode,src){
     items.push(makeItem(type,c,pool));
   }
   quizzes.forEach(q=>items.splice(Math.floor(Math.random()*(items.length+1)),0,{type:'cloze',q}));
-  return {mode,src,items,i:0,st:fresh(),xp:0,firstOk:0,firstTotal:items.length,graded:new Set(),requeued:new Set()};
+  /* each exercise keeps its own answer state so the learner can step back through answered ones */
+  return {mode,src,items,i:0,max:0,states:[],get st(){return this.states[this.i]??=fresh()},set st(v){this.states[this.i]=v},xp:0,firstOk:0,firstTotal:items.length,graded:new Set(),requeued:new Set()};
 }
 function fresh(){return {sel:null,tiles:[],typed:'',revealed:false,result:null,said:0}}
 function makeItem(type,c,pool){
@@ -433,7 +435,7 @@ function finish(ok,close){
   if(first&&ok){L.firstOk++;L.xp+=2}
   if(it.c&&!L.graded.has(it.c.key)){L.graded.add(it.c.key);grow(it.c,ok)}
   L.st.first=first;L.st.pushed=false;
-  if(!ok&&first){L.requeued.add(key);L.items.push(it.type==='cloze'?{...it}:makeItem(it.type,it.c));L.st.pushed=true}
+  if(!ok&&first){L.requeued.add(key);const again=it.type==='cloze'?{...it}:makeItem(it.type,it.c);L.items.push(again);L.st.pushed=again}
   render();
   if(it.c&&(!ok||!['listen','dictate','shadow'].includes(it.type)))say(it.c.en);
   if(it.type==='cloze'&&ok)say(fillCloze(it.q));
@@ -441,16 +443,20 @@ function finish(ok,close){
 /* the phone mis-heard a correct answer: undo the miss */
 function override(){
   const L=S.lesson,st=L.st,it=curItem();if(st.result!=='no')return;
-  if(st.pushed)L.items.pop();
+  if(st.pushed){const k=L.items.lastIndexOf(st.pushed);if(k>L.max)L.items.splice(k,1);st.pushed=false}
   if(st.first){L.firstOk++;L.xp+=2}
   if(it.c)grow(it.c,true);
   st.result='ok';render();
 }
 function next(){
-  stopRec();const L=S.lesson;L.i++;L.st=fresh();
+  stopRec();const L=S.lesson;
+  if(L.i<L.max){L.i++;render();return}
+  if(!L.st.result)return;
+  L.i++;L.max=L.i;
   if(L.i>=L.items.length){L.done=true;L.xp+=5;addXP(L.xp);flush()}
   render();if(!L.done)autoPlay();
 }
+function prev(){stopRec();const L=S.lesson;if(L.i>0){L.i--;render()}}
 function fillCloze(q){const parts=q.a.split(/\s*,\s*/);let i=0;return q.q.replace(/\([^)]*\)/g,'').replace(/(_{2,}\s*)+/g,m=>{const k=(m.match(/_{2,}/g)||[]).length;const w=parts.length>=k?parts.slice(i,i+k).join(' '):q.a;i+=k;return w+' '}).replace(/\s+/g,' ').trim()}
 
 /* ---------- recording (browser speech recognition) ---------- */
@@ -485,7 +491,7 @@ function toggleRec(){
     if(REC===r)REC=null;
     if(S.lesson!==L||L.i!==idx)return;
     L.st.listening=false;
-    if(L.st.typed.trim()&&!L.st.result)check();else render();
+    render();
   };
   try{r.start()}catch(e){REC=null;L.st.listening=false;render();toast('녹음을 시작하지 못했어요.')}
 }
@@ -529,7 +535,7 @@ function viewHome(){
   </div>
   <p class="hint">말하기·받아쓰기·빈칸 문제는 빨간 녹음 버튼을 누르고 영어로 말하면 앱이 알아듣고 채점해요. 놓친 단어에는 밑줄이 그어져요. 처음 한 번은 마이크 사용을 허용해 주세요.${TTS?'':' 이 기기에서는 읽어 주기가 안 돼서 듣기 문제가 빠져요.'}</p>`;
 }
-const micInput=st=>`<div class="recwrap"><button class="rec ${st.listening?'on':''}" data-act="rec" aria-label="녹음" ${st.result?'disabled':''}>${ICON.mic}</button><span class="hint">${st.listening?'듣고 있어요. 말이 끝나면 바로 채점해요.':'빨간 버튼을 누르고 영어로 말하세요'}</span></div><textarea id="typeIn" class="en" rows="2" placeholder="말한 내용이 여기에 적혀요 (직접 고쳐도 돼요)" autocomplete="off" autocapitalize="off" spellcheck="false" ${st.result?'disabled':''}>${esc(st.typed)}</textarea>`;
+const micInput=st=>`<div class="recwrap"><button class="rec ${st.listening?'on':''}" data-act="rec" aria-label="녹음" ${st.result?'disabled':''}>${ICON.mic}</button><span class="hint">${st.listening?'듣고 있어요. 말이 끝나면 아래에 적혀요.':'빨간 버튼을 누르고 영어로 말하세요. 잘못 적힌 글자는 고친 뒤 확인을 누르세요.'}</span></div><textarea id="typeIn" class="en" rows="2" placeholder="말한 내용이 여기에 적혀요 (직접 고쳐도 돼요)" autocomplete="off" autocapitalize="off" spellcheck="false" ${st.result?'disabled':''}>${esc(st.typed)}</textarea>`;
 const playBtns=(big)=>`<div class="play"><button class="pbtn ${big?'big':'mid'}" data-act="say" aria-label="듣기">${ICON.speak}</button><button class="pbtn mid slow" data-act="saySlow" aria-label="천천히 듣기">${ICON.slow}</button></div>`;
 function viewLesson(){
   const L=S.lesson;
@@ -543,7 +549,8 @@ function viewLesson(){
     <div class="foot"><div class="in"><div class="acts two"><button class="btn" data-act="exit">홈으로</button><button class="btn primary" data-act="lesson" data-v="${L.mode}">한 번 더</button></div></div></div>`;
   }
   const it=curItem(),st=L.st,c=it.c;
-  const pct=L.i/L.items.length*100;
+  const pct=L.max/L.items.length*100;
+  const lnav=`<div class="lnav"><button class="btn small" data-act="prev" ${L.i>0?'':'disabled'}>‹ 이전</button><span class="meter">${L.i<L.max?'지난 문제 · ':''}${L.i+1} / ${L.items.length}</span><button class="btn small" data-act="fwd" ${L.i<L.max?'':'disabled'}>다음 ›</button></div>`;
   let ask='',body='';
   const slug=c?`<div class="slug">${esc(shortDate(S.notes[c.note]?.date))} — ${esc(c.sec)}</div>`:'';
   const optBtns=(field)=>`<div class="opts">${it.opts.map((o,k)=>{
@@ -589,7 +596,7 @@ function viewLesson(){
   }else{
     foot=`<div class="foot"><div class="in"><div class="acts"><button class="btn primary" data-act="check" ${canCheck()?'':'disabled'}>확인<kbd>Enter</kbd></button></div></div></div>`;
   }
-  return `<div class="lesson"><div class="ltop"><button class="x" data-act="exit" aria-label="레슨 그만하기">×</button><div class="bar"><i style="width:${pct}%"></i></div><span class="meter">+${L.xp}</span></div>
+  return `<div class="lesson"><div class="ltop"><button class="x" data-act="exit" aria-label="레슨 그만하기">×</button><div class="bar"><i style="width:${pct}%"></i></div><span class="meter">+${L.xp}</span></div>${lnav}
     <div class="ask">${ask}</div>${slug}${body}</div>${foot}`;
 }
 function viewCards(){
@@ -679,7 +686,7 @@ async function readFiles(files){for(const f of files){try{await addNote(await f.
 /* ---------- render + events ---------- */
 function render(){
   const app=$('#app');
-  if(S.lesson){app.innerHTML=viewLesson();const t=$('#typeIn');if(t&&!S.lesson.st.result)t.focus({preventScroll:true});return}
+  if(S.lesson){app.innerHTML=viewLesson();const t=$('#typeIn');if(t&&!S.lesson.st.result&&!S.lesson.st.listening&&matchMedia('(pointer:fine)').matches)t.focus({preventScroll:true});return}
   app.innerHTML=shell(S.tab==='cards'?viewCards():S.tab==='notes'?viewNotes():viewHome());
   if(S.tab==='notes')renderResults();
 }
@@ -704,6 +711,8 @@ document.addEventListener('click',e=>{
     case 'skipOk':finish(true);next();break;
     case 'skipNo':finish(false);break;
     case 'override':override();break;
+    case 'prev':prev();break;
+    case 'fwd':if(L.i<L.max)next();break;
     case 'rec':toggleRec();break;
     case 'deck':S.fc.deck=v;buildFC();render();break;
     case 'dir':S.fc.dir=v;render();break;
