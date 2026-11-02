@@ -364,14 +364,27 @@ function typesFor(c,mode){
   if(mode!=='listen'){t.push('shadow');if((getP(c)?.b||0)>=1||mode==='speak')t.push('sayIt')}
   return t.length?t:['choose'];
 }
+/* what the last lessons showed, so back-to-back lessons don't repeat themselves (a missed item still comes back once inside its own lesson) */
+const RECENT=lsGet('recent')||{};let SEQ=lsGet('seq')||0;
+const recentPenalty=k=>RECENT[k]&&SEQ-RECENT[k]<2?10:0;
+function markShown(keys){
+  SEQ++;for(const k of keys)RECENT[k]=SEQ;
+  for(const k in RECENT)if(SEQ-RECENT[k]>5)delete RECENT[k];
+  lsSet('recent',RECENT);lsSet('seq',SEQ);
+}
+const hasWords=(text,part)=>(' '+text+' ').includes(' '+part+' ');
 function buildLesson(mode,src){
   let pool=srcCards(src).filter(c=>c.en);
   if(!pool.length)return null;
   const t=today();
-  const rank=c=>{const p=getP(c);return !p?1:p.d<=t?0:2+(p.b||0)};
+  const rank=c=>{const p=getP(c);return (!p?1:p.d<=t?0:2+(p.b||0))+recentPenalty(c.key)};
   pool=shuffle(pool).sort((a,b)=>rank(a)-rank(b));
-  const quizzes=mode==='speak'?[]:shuffle(notesSorted().filter(n=>src==='due'||n.id===src).flatMap(n=>n.quiz).filter(q=>q.a)).slice(0,2);
-  const nCards=Math.min(pool.length,LESSON_LEN-quizzes.length);
+  const quizzes=mode==='speak'?[]:shuffle(notesSorted().filter(n=>src==='due'||n.id===src).flatMap(n=>n.quiz).filter(q=>q.a&&!recentPenalty(q.key))).sort((a,b)=>(RECENT[a.key]||0)-(RECENT[b.key]||0)).slice(0,2);
+  /* a card whose phrase is the same as a fill-in sentence's would just repeat it */
+  const qText=quizzes.map(q=>normE(fillCloze(q))),qAns=quizzes.map(q=>normE(q.a.replace(/,/g,' '))).filter(a=>a.length>2);
+  pool=pool.filter(c=>{const e=normE(c.en);return !qText.some(s=>hasWords(s,e)||hasWords(e,s))&&!qAns.some(a=>hasWords(e,a))});
+  const wantMatch=mode==='mix';
+  const nCards=Math.min(pool.length,LESSON_LEN-quizzes.length-(wantMatch?1:0));
   const items=[];const used={};
   for(const c of pool.slice(0,nCards)){
     let ts=typesFor(c,mode);
@@ -380,13 +393,13 @@ function buildLesson(mode,src){
     items.push(makeItem(type,c,pool));
   }
   quizzes.forEach(q=>items.splice(Math.floor(Math.random()*(items.length+1)),0,{type:'cloze',q}));
-  if(mode==='mix'){
-    const m=makeMatch(src);
-    if(m){
-      items.splice(Math.floor(items.length/2),0,m);
-      if(items.length>LESSON_LEN){const k=items.findLastIndex(x=>x.c);if(k>=0)items.splice(k,1)}
-    }
+  if(wantMatch){
+    /* pairs come from cards this lesson isn't already asking about */
+    const m=makeMatch(pool.slice(nCards));
+    if(m)items.splice(Math.floor(items.length/2),0,m);
+    else if(pool[nCards])items.push(makeItem('choose',pool[nCards]));
   }
+  markShown(items.flatMap(it=>it.type==='match'?it.pairs.map(c=>c.key):[it.c?it.c.key:it.q.key]));
   /* each exercise keeps its own answer state so the learner can step back through answered ones */
   return {mode,src,items,i:0,max:0,states:[],get st(){return this.states[this.i]??=fresh()},set st(v){this.states[this.i]=v},xp:0,firstOk:0,firstTotal:items.length,graded:new Set(),requeued:new Set()};
 }
@@ -468,9 +481,8 @@ function finish(ok,close){
   if(line)setTimeout(()=>say(line),380);
 }
 /* ---------- match pairs ---------- */
-function makeMatch(src){
-  const t=today(),rank=c=>{const p=getP(c);return !p?1:p.d<=t?0:2+(p.b||0)};
-  const pool=shuffle(srcCards(src).filter(c=>c.en&&c.words<=6&&c.ko&&c.ko.length<=26)).sort((a,b)=>rank(a)-rank(b));
+function makeMatch(cands){
+  const pool=cands.filter(c=>c.en&&c.words<=6&&c.ko&&c.ko.length<=26);
   const pairs=[],seenE=new Set(),seenK=new Set();
   for(const c of pool){if(pairs.length>=5)break;const e=normE(c.en);if(seenE.has(e)||seenK.has(c.ko))continue;seenE.add(e);seenK.add(c.ko);pairs.push(c)}
   if(pairs.length<4)return null;
