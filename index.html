@@ -162,6 +162,7 @@ dl.ex dd{margin:0;min-width:0;overflow-wrap:anywhere}
 @media (prefers-reduced-motion:reduce){.bar i{transition:none}}
 body{margin:0;padding-top:env(safe-area-inset-top,0px)}
 [hidden]{display:none!important}
+.kohint{font-size:17px;font-weight:500;color:var(--ink);border-left:3px solid var(--mark);padding-left:10px}
 .lnav{display:flex;align-items:center;justify-content:space-between;gap:8px}
 .recwrap{display:flex;align-items:center;gap:14px}
 .rec{all:unset;cursor:pointer;width:72px;height:72px;border-radius:50%;display:grid;place-items:center;background:var(--bad);color:#fff;flex:none;box-shadow:0 3px 0 rgba(0,0,0,.18)}
@@ -284,7 +285,7 @@ function buildNote(id,v){
 }
 
 /* ---------- state ---------- */
-const S={notes:{},prog:{},stats:{days:{},goal:30},db:null,uid:null,loaded:false,status:'',
+const S={notes:{},qko:{},prog:{},stats:{days:{},goal:30},db:null,uid:null,loaded:false,status:'',
   tab:lsGet('tab')||'home',src:'due',lesson:null,
   fc:{deck:'due',dir:'fwd',queue:[],qi:0,flipped:false,started:false,done:{known:0,fuzzy:0,miss:0}},
   openNote:null,confirmDel:null};
@@ -460,6 +461,12 @@ function next(){
   render();if(!L.done)autoPlay();
 }
 function prev(){stopRec();const L=S.lesson;if(L.i>0){L.i--;render()}}
+/* Korean meaning for a fill-in sentence: quiz-ko.json first, else the Korean the note put in parentheses */
+function clozeKo(q){
+  const m=q.q.match(/\(([^)]*[가-힣][^)]*)\)/);const paren=m?m[1].trim():'';
+  const tr=S.qko[q.note+'#'+q.n]||'';
+  return {tr:tr||paren,extra:tr&&paren&&paren!==tr?paren:''};
+}
 function fillCloze(q){const parts=q.a.split(/\s*,\s*/);let i=0;return q.q.replace(/\([^)]*\)/g,'').replace(/(_{2,}\s*)+/g,m=>{const k=(m.match(/_{2,}/g)||[]).length;const w=parts.length>=k?parts.slice(i,i+k).join(' '):q.a;i+=k;return w+' '}).replace(/\s+/g,' ').trim()}
 
 /* ---------- recording (browser speech recognition) ---------- */
@@ -572,7 +579,9 @@ function viewLesson(){
   else if(it.type==='cloze'){
     const q=it.q,n=S.notes[q.note];
     ask='빈칸을 채우세요';
-    body=`<div class="slug">${esc(shortDate(n?.date))} — 셀프 퀴즈 ${q.n}번</div><div class="prompt en">${esc(q.q).replace(/(_{2,}\s*)+/g,'<span class="hl">　　　</span> ')}</div>
+    const ko=clozeKo(q);
+    body=`<div class="slug">${esc(shortDate(n?.date))} — 셀프 퀴즈 ${q.n}번</div><div class="prompt en">${esc(q.q.replace(/\s*\([^)]*[가-힣][^)]*\)\s*/g,' ').trim()).replace(/(_{2,}\s*)+/g,'<span class="hl">　　　</span> ')}</div>
+    ${ko.tr?`<div class="kohint">${esc(ko.tr)}</div>`:''}${ko.extra?`<div class="hint">${esc(ko.extra)}</div>`:''}
     ${micInput(st)}`;
   }
   else if(it.type==='shadow'){
@@ -798,6 +807,7 @@ async function start(){
   const hidden=new Set(lsGet('hidden')||[]);
   for(const id in base)if(!hidden.has(id))S.notes[id]=buildNote(id,base[id]);
   const loc=lsGet('notes')||{};for(const id in loc){const b=buildNote(id,loc[id]);b.local=true;S.notes[id]=b}
+  try{const r=await fetch('quiz-ko.json',{cache:'no-cache'});if(r.ok)S.qko=await r.json()}catch(e){}
   S.prog=lsGet('prog')||{};S.stats=lsGet('stats')||S.stats;S.loaded=true;
   buildFC();render();
   try{navigator.storage?.persist?.()}catch(e){}
