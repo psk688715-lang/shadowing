@@ -273,7 +273,8 @@ function engText(c){
   return /[가-힣]/.test(s)?'':s;
 }
 function meanText(c){
-  const s=c.kind==='ko'?strip(c.front):strip(c.back).replace(/\(※[^)]*\)/g,'');
+  /* drop "(※ …)" notes and any parenthetical holding English, so the prompt never gives away the answer */
+  const s=c.kind==='ko'?strip(c.front):strip(c.back).replace(/\(※[^)]*\)/g,'').replace(/\s*\([^)]*[A-Za-z][^)]*\)/g,'');
   return s.replace(/\s+/g,' ').trim();
 }
 function buildNote(id,v){
