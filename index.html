@@ -164,6 +164,17 @@ body{margin:0;padding-top:env(safe-area-inset-top,0px)}
 [hidden]{display:none!important}
 .kohint{font-size:17px;font-weight:500;color:var(--ink);border-left:3px solid var(--mark);padding-left:10px}
 .lnav{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.match{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.mcol{display:flex;flex-direction:column;gap:8px;min-width:0}
+.mt{all:unset;box-sizing:border-box;cursor:pointer;min-height:54px;padding:8px 10px;border:1.5px solid var(--line);border-bottom-width:3px;border-radius:10px;background:var(--card);display:flex;align-items:center;justify-content:center;text-align:center;font-size:14px;line-height:1.35;overflow-wrap:anywhere}
+.mt.en{font-family:var(--f-script);font-weight:700;font-size:15px}
+.mt.sel{border-color:var(--accent);background:var(--soft)}
+.mt.bad{border-color:var(--bad);background:var(--bad-soft);animation:shake .3s}
+.mt.done{opacity:.4;border-color:var(--good);background:var(--good-soft);cursor:default}
+@keyframes shake{25%{transform:translateX(-4px)}75%{transform:translateX(4px)}}
+@media (prefers-reduced-motion:reduce){.mt.bad{animation:none}}
+.cmb,.combo{color:var(--warn);font-weight:700}
+.rgrid{grid-template-columns:repeat(2,1fr)!important}
 .recwrap{display:flex;align-items:center;gap:14px}
 .rec{all:unset;cursor:pointer;width:72px;height:72px;border-radius:50%;display:grid;place-items:center;background:var(--bad);color:#fff;flex:none;box-shadow:0 3px 0 rgba(0,0,0,.18)}
 .rec svg{width:34px;height:34px}
@@ -369,10 +380,17 @@ function buildLesson(mode,src){
     items.push(makeItem(type,c,pool));
   }
   quizzes.forEach(q=>items.splice(Math.floor(Math.random()*(items.length+1)),0,{type:'cloze',q}));
+  if(mode==='mix'){
+    const m=makeMatch(src);
+    if(m){
+      items.splice(Math.floor(items.length/2),0,m);
+      if(items.length>LESSON_LEN){const k=items.findLastIndex(x=>x.c);if(k>=0)items.splice(k,1)}
+    }
+  }
   /* each exercise keeps its own answer state so the learner can step back through answered ones */
   return {mode,src,items,i:0,max:0,states:[],get st(){return this.states[this.i]??=fresh()},set st(v){this.states[this.i]=v},xp:0,firstOk:0,firstTotal:items.length,graded:new Set(),requeued:new Set()};
 }
-function fresh(){return {sel:null,tiles:[],typed:'',revealed:false,result:null,said:0}}
+function fresh(){return {sel:null,tiles:[],typed:'',revealed:false,result:null,said:0,mdone:[],mmiss:0,msel:null,mbad:null}}
 function makeItem(type,c,pool){
   const it={type,c};
   if(type==='listen'||type==='choose'){
@@ -435,21 +453,65 @@ function check(){
 function finish(ok,close){
   const L=S.lesson,it=curItem();
   L.st.result=ok?(close?'close':'ok'):'no';
-  const key=(it.c?.key||it.q.key)+':'+it.type;
+  const key=(it.c?.key||it.q?.key||it.key)+':'+it.type;
   const first=!L.requeued.has(key);
   if(first&&ok){L.firstOk++;L.xp+=2}
   if(it.c&&!L.graded.has(it.c.key)){L.graded.add(it.c.key);grow(it.c,ok)}
-  L.st.first=first;L.st.pushed=false;
+  L.st.first=first;L.st.pushed=false;L.st.prevCombo=L.combo||0;
+  if(ok&&first){L.combo=(L.combo||0)+1;L.best=Math.max(L.best||0,L.combo)}else if(!ok)L.combo=0;
+  L.st.combo=L.combo;
   if(!ok&&first){L.requeued.add(key);const again=it.type==='cloze'?{...it}:makeItem(it.type,it.c);L.items.push(again);L.st.pushed=again}
   render();
-  if(it.c&&(!ok||!['listen','dictate','shadow'].includes(it.type)))say(it.c.en);
-  if(it.type==='cloze'&&ok)say(fillCloze(it.q));
+  sfx(!ok?'bad':[3,5,10,15,20].includes(L.combo)&&first?'combo':'ok');
+  /* let the chime finish before the voice reads the answer */
+  const line=it.c&&(!ok||!['listen','dictate','shadow'].includes(it.type))?it.c.en:it.type==='cloze'&&ok?fillCloze(it.q):'';
+  if(line)setTimeout(()=>say(line),380);
+}
+/* ---------- match pairs ---------- */
+function makeMatch(src){
+  const t=today(),rank=c=>{const p=getP(c);return !p?1:p.d<=t?0:2+(p.b||0)};
+  const pool=shuffle(srcCards(src).filter(c=>c.en&&c.words<=6&&c.ko&&c.ko.length<=26)).sort((a,b)=>rank(a)-rank(b));
+  const pairs=[],seenE=new Set(),seenK=new Set();
+  for(const c of pool){if(pairs.length>=5)break;const e=normE(c.en);if(seenE.has(e)||seenK.has(c.ko))continue;seenE.add(e);seenK.add(c.ko);pairs.push(c)}
+  if(pairs.length<4)return null;
+  const idx=pairs.map((_,i)=>i);
+  return {type:'match',key:'match:'+pairs.map(c=>c.id).join('.'),pairs,left:shuffle([...idx]),right:shuffle([...idx])};
+}
+function mpick(v){
+  const L=S.lesson,st=L.st,it=curItem();if(!it||it.type!=='match'||st.result)return;
+  const side=v[0],i=+v.slice(2);
+  st.mdone??=[];st.mmiss??=0;
+  if(st.mdone.includes(i))return;
+  if(side==='L')say(it.pairs[i].en);
+  if(!st.msel||st.msel[0]===side){st.msel=[side,i];st.mbad=null;render();return}
+  const a=st.msel[0]==='L'?st.msel[1]:i,b=st.msel[0]==='R'?st.msel[1]:i;
+  st.msel=null;
+  if(a===b){st.mdone.push(a);st.mbad=null;if(st.mdone.length===it.pairs.length)finish(true);else{sfx('tick');render()}}
+  else{st.mmiss++;st.mbad=[a,b];sfx('bad');render()}
+}
+/* ---------- sound effects (synthesized, no files) ---------- */
+let AC=null;
+const sfxOn=()=>lsGet('sfx')!==false;
+function sfx(kind){
+  if(!sfxOn())return;
+  try{
+    AC??=new (window.AudioContext||window.webkitAudioContext)();
+    if(AC.state==='suspended')AC.resume();
+    const seq={ok:[[784,0,.1],[1047,.09,.18]],tick:[[988,0,.08]],bad:[[220,0,.12,'square'],[175,.1,.2,'square']],
+      combo:[[784,0,.09],[988,.08,.09],[1319,.16,.22]],done:[[523,0,.12],[659,.12,.12],[784,.24,.12],[1047,.36,.35]]}[kind];
+    const t0=AC.currentTime+.01;
+    for(const [f,dt,dur,type] of seq){
+      const o=AC.createOscillator(),g=AC.createGain();o.type=type||'triangle';o.frequency.value=f;
+      g.gain.setValueAtTime(.0001,t0+dt);g.gain.exponentialRampToValueAtTime(type==='square'?.05:.2,t0+dt+.012);g.gain.exponentialRampToValueAtTime(.0001,t0+dt+dur);
+      o.connect(g).connect(AC.destination);o.start(t0+dt);o.stop(t0+dt+dur+.03);
+    }
+  }catch(e){}
 }
 /* the phone mis-heard a correct answer: undo the miss */
 function override(){
   const L=S.lesson,st=L.st,it=curItem();if(st.result!=='no')return;
   if(st.pushed){const k=L.items.lastIndexOf(st.pushed);if(k>L.max)L.items.splice(k,1);st.pushed=false}
-  if(st.first){L.firstOk++;L.xp+=2}
+  if(st.first){L.firstOk++;L.xp+=2;L.combo=(st.prevCombo||0)+1;L.best=Math.max(L.best||0,L.combo);st.combo=L.combo}
   if(it.c)grow(it.c,true);
   st.result='ok';render();
 }
@@ -458,7 +520,7 @@ function next(){
   if(L.i<L.max){L.i++;render();return}
   if(!L.st.result)return;
   L.i++;L.max=L.i;
-  if(L.i>=L.items.length){L.done=true;L.xp+=5;addXP(L.xp);flush()}
+  if(L.i>=L.items.length){L.done=true;L.xp+=5;addXP(L.xp);flush();sfx('done')}
   render();if(!L.done)autoPlay();
 }
 function prev(){stopRec();const L=S.lesson;if(L.i>0){L.i--;render()}}
@@ -537,6 +599,7 @@ function viewHome(){
         <div class="week">${days.map(d=>{const v=S.stats.days[d]||0;return `<div><i class="${v?'':'zero'}" style="height:${Math.max(3,v/mx*44)}px"></i>${wk[new Date(d+'T12:00').getDay()]}</div>`}).join('')}</div>
       </div></div>
       <div class="row"><span class="hint">하루 목표</span><div class="seg">${[20,30,50].map(g=>`<button data-act="goal" data-v="${g}" aria-pressed="${goal===g}">${g} XP</button>`).join('')}</div></div>
+      <div class="row"><span class="hint">효과음</span><div class="seg"><button data-act="sfx" data-v="1" aria-pressed="${sfxOn()}">켜기</button><button data-act="sfx" data-v="0" aria-pressed="${!sfxOn()}">끄기</button></div></div>
   </div>
   <div style="display:flex;flex-direction:column;gap:8px"><h2>무엇으로 공부할까요</h2>${srcChips(S.src,'src')}</div>
   <div class="starts">
@@ -554,7 +617,8 @@ function viewLesson(){
     const acc=Math.round(L.firstOk/L.firstTotal*100);
     return `<div class="lesson"><div class="result">
       <h2>레슨 끝</h2><div class="hint">${esc(L.src==='due'?'오늘 복습할 것':S.notes[L.src]?.label||'')}</div>
-      <div class="rgrid"><div><b>+${L.xp}</b><span>XP</span></div><div><b>${acc}%</b><span>한 번에 맞힘</span></div><div><b>${streak()}일</b><span>연속 학습</span></div></div>
+      <div class="rgrid"><div><b>+${L.xp}</b><span>XP</span></div><div><b>${acc}%</b><span>한 번에 맞힘</span></div><div><b>${L.best||0}</b><span>최고 연속 정답</span></div><div><b>${streak()}일</b><span>연속 학습</span></div></div>
+      <div class="hint">${acc===100?'완벽해요. 하나도 안 틀렸어요.':acc>=80?'아주 좋아요.':acc>=50?'좋아요. 틀린 표현은 곧 다시 나와요.':'틀린 표현은 곧 다시 나와요. 천천히 해도 돼요.'}</div>
       <div class="hint">오늘 ${S.stats.days[today()]||0} / ${S.stats.goal} XP</div>
     </div></div>
     <div class="foot"><div class="in"><div class="acts two"><button class="btn" data-act="exit">홈으로</button><button class="btn primary" data-act="lesson" data-v="${L.mode}">한 번 더</button></div></div></div>`;
@@ -585,6 +649,14 @@ function viewLesson(){
     ${ko.tr?`<div class="kohint">${esc(ko.tr)}</div>`:''}${ko.extra?`<div class="hint">${esc(ko.extra)}</div>`:''}
     ${micInput(st)}`;
   }
+  else if(it.type==='match'){
+    ask='짝을 맞추세요';
+    const mdone=st.mdone||[];
+    const b=(side,i,txt,en)=>{const done=mdone.includes(i),sel=st.msel&&st.msel[0]===side&&st.msel[1]===i,bad=st.mbad&&st.mbad[side==='L'?0:1]===i;
+      return `<button class="mt ${en?'en':''} ${done?'done':''} ${sel?'sel':''} ${bad?'bad':''}" data-act="mpick" data-v="${side}:${i}" ${done||st.result?'disabled':''}>${esc(txt)}</button>`};
+    body=`<div class="match"><div class="mcol">${it.left.map(i=>b('L',i,it.pairs[i].en,true)).join('')}</div><div class="mcol">${it.right.map(i=>b('R',i,it.pairs[i].ko)).join('')}</div></div>
+      <div class="hint">영어를 누르면 소리가 나와요.</div>`;
+  }
   else if(it.type==='shadow'){
     ask='듣고 따라 말하세요';
     body=`${playBtns(true)}<div class="prompt en">${esc(c.en)}</div><div class="hint">${esc(c.ko)}</div>${micInput(st)}`;
@@ -596,12 +668,14 @@ function viewLesson(){
   const res=st.result;
   let foot='';
   if(res){
-    const right=c?c.en:fillCloze(it.q);
+    const right=c?c.en:it.q?fillCloze(it.q):'';
     const spoken=['dictate','shadow','sayIt'].includes(it.type)&&st.typed.trim();
     const rightHtml=spoken&&res!=='ok'?diffHtml(right,st.typed):esc(right);
     const heard=spoken&&res!=='ok'?`<span class="hint">들린 말: ${esc(st.typed)}</span>`:'';
-    const msg=res==='no'?`<b>정답</b><span class="en">${rightHtml}</span>${c?`<span>${esc(c.ko)}</span>`:''}${heard}`
-      :`<b>${res==='close'?'거의 맞았어요':pick(['좋아요','맞았어요','잘했어요'])}</b>${res==='close'||['listen','dictate','sayIt'].includes(it.type)?`<span class="en">${rightHtml}</span>`:''}${c&&it.type==='listen'?`<span>${esc(c.ko)}</span>`:''}${heard}`;
+    const combo=res!=='no'&&st.combo>=3?`<span class="combo">${st.combo}개 연속 정답!</span>`:'';
+    const msg=it.type==='match'?`<b>짝을 다 맞췄어요</b>${combo}<span>${st.mmiss?'틀린 횟수 '+st.mmiss+'번':'한 번도 안 틀렸어요'}</span>`
+      :res==='no'?`<b>정답</b><span class="en">${rightHtml}</span>${c?`<span>${esc(c.ko)}</span>`:''}${heard}`
+      :`<b>${res==='close'?'거의 맞았어요':pick(['좋아요','맞았어요','잘했어요'])}</b>${combo}${res==='close'||['listen','dictate','sayIt'].includes(it.type)?`<span class="en">${rightHtml}</span>`:''}${c&&it.type==='listen'?`<span>${esc(c.ko)}</span>`:''}${heard}`;
     const ov=res==='no'&&spoken?`<button class="btn" data-act="override">제대로 말했어요</button>`:'';
     foot=`<div class="foot ${res==='no'?'no':'ok'}"><div class="in"><div class="msg">${msg}</div><div class="acts ${ov?'two':''}">${ov}<button class="btn primary" data-act="next">계속<kbd>Enter</kbd></button></div></div></div>`;
   }else if(it.type==='shadow'||it.type==='sayIt'){
@@ -610,7 +684,7 @@ function viewLesson(){
   }else{
     foot=`<div class="foot"><div class="in"><div class="acts"><button class="btn primary" data-act="check" ${canCheck()?'':'disabled'}>확인<kbd>Enter</kbd></button></div></div></div>`;
   }
-  return `<div class="lesson"><div class="ltop"><button class="x" data-act="exit" aria-label="레슨 그만하기">×</button><div class="bar"><i style="width:${pct}%"></i></div><span class="meter">+${L.xp}</span></div>${lnav}
+  return `<div class="lesson"><div class="ltop"><button class="x" data-act="exit" aria-label="레슨 그만하기">×</button><div class="bar"><i style="width:${pct}%"></i></div><span class="meter">${(L.combo||0)>=2?`<span class="cmb">${L.combo}연속</span> `:''}+${L.xp}</span></div>${lnav}
     <div class="ask">${ask}</div>${slug}${body}</div>${foot}`;
 }
 function viewCards(){
@@ -714,6 +788,8 @@ document.addEventListener('click',e=>{
   switch(t.dataset.act){
     case 'src':S.src=v;render();break;
     case 'goal':S.stats.goal=+v;dirty.add('stats');queueSave();render();break;
+    case 'sfx':lsSet('sfx',v==='1');render();if(v==='1')sfx('ok');break;
+    case 'mpick':mpick(v);break;
     case 'lesson':startLesson(v);break;
     case 'exit':stopRec();S.lesson=null;flush();render();break;
     case 'say':say(it?.c?.en||(it?.q?fillCloze(it.q):''));break;
