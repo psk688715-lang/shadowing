@@ -193,7 +193,7 @@ body{margin:0;padding-top:env(safe-area-inset-top,0px)}
 
 <script>
 const IV=[0,1,2,4,7,15,30];
-const APP_VER='11.02-k';
+const APP_VER='11.03-a';
 const LESSON_LEN=10;          // cards per lesson
 const REVIEW_PER_LESSON=2;    // of those, due reviews when new cards remain
 /* progress counts only expressions a lesson can ask (cards with an English line) */
@@ -375,16 +375,27 @@ function sayTTS(text,slow){
 
 /* ---------- lesson building ---------- */
 const LISTEN=['listen','dictate','arrangeEar'],SPEAKT=['shadow','sayIt'];
+/* every exercise is answered by tapping; speaking ones can be switched off for quiet places */
+const speakOn=()=>lsGet('speak')!==false;
 function typesFor(c,mode){
   const sent=c.words>=3&&c.words<=14;const t=[];
+  if(mode==='speak'&&!speakOn())mode='mix';
   if(mode!=='speak'){
     if(TTS)t.push('listen');
-    if(TTS&&sent&&(getP(c)?.b||0)>=1)t.push('dictate');
     if(sent)t.push(mode==='listen'&&TTS?'arrangeEar':'arrange');
     if(mode==='mix')t.push('choose');
   }
-  if(mode!=='listen'){t.push('shadow');if((getP(c)?.b||0)>=1||mode==='speak')t.push('sayIt')}
+  if(mode!=='listen'&&speakOn()){t.push('shadow');if((getP(c)?.b||0)>=1||mode==='speak')t.push('sayIt')}
   return t.length?t:['choose'];
+}
+function makeCloze(q){
+  const parts=a=>a.split(/\s*,\s*/).length;
+  const others=notesSorted().flatMap(n=>n.quiz).filter(x=>x.a&&normK(x.a)!==normK(q.a));
+  let pool=shuffle(others.filter(x=>parts(x.a)===parts(q.a)).map(x=>x.a));
+  if(pool.length<3)pool=pool.concat(shuffle(others.map(x=>x.a)));
+  const opts=[q.a];
+  for(const a of pool){if(opts.length>=4)break;if(!opts.some(o=>normK(o)===normK(a)))opts.push(a)}
+  return {type:'cloze',q,copts:shuffle(opts)};
 }
 /* what the last lessons showed, so back-to-back lessons don't repeat themselves (a missed item still comes back once inside its own lesson) */
 const RECENT=lsGet('recent')||{};let SEQ=lsGet('seq')||0;
@@ -420,7 +431,7 @@ function buildLesson(mode,src,practice){
     const type=pick(fresh.length?fresh:ts);used[type]=(used[type]||0)+1;
     items.push(makeItem(type,c,pool));
   }
-  quizzes.forEach(q=>items.splice(Math.floor(Math.random()*(items.length+1)),0,{type:'cloze',q}));
+  quizzes.forEach(q=>items.splice(Math.floor(Math.random()*(items.length+1)),0,makeCloze(q)));
   if(wantMatch){
     /* pairs come from cards this lesson isn't already asking about */
     /* pairs review cards already learned that this lesson isn't asking about */
@@ -439,7 +450,7 @@ function lessonObj(o){
 function saveLesson(){
   const L=S.lesson;
   if(!L||L.done){lsSet('lesson',null);return}
-  const ser=it=>({type:it.type,c:it.c?.key,q:it.q?.key,opts:it.opts?.map(o=>o.key),field:it.field,bank:it.bank,pairs:it.pairs?.map(c=>c.key),left:it.left,right:it.right,key:it.key});
+  const ser=it=>({type:it.type,c:it.c?.key,q:it.q?.key,opts:it.opts?.map(o=>o.key),field:it.field,bank:it.bank,pairs:it.pairs?.map(c=>c.key),left:it.left,right:it.right,key:it.key,copts:it.copts});
   lsSet('lesson',{v:1,mode:L.mode,src:L.src,practice:L.practice,i:L.i,max:L.max,xp:L.xp,firstOk:L.firstOk,firstTotal:L.firstTotal,combo:L.combo||0,best:L.best||0,
     graded:[...L.graded],requeued:[...L.requeued],items:L.items.map(ser),
     states:L.states.map(s=>s&&{...s,listening:false,pushed:s.pushed?L.items.lastIndexOf(s.pushed):-1})});
@@ -506,6 +517,7 @@ function canCheck(){
   const it=curItem(),st=S.lesson.st;
   if(['listen','choose'].includes(it.type))return st.sel!=null;
   if(it.type.startsWith('arrange'))return st.tiles.length>0;
+  if(it.type==='cloze'&&it.copts)return st.sel!=null;
   if(['dictate','cloze','shadow','sayIt'].includes(it.type))return st.typed.trim().length>0;
   return false;
 }
@@ -515,7 +527,7 @@ function check(){
   if(['listen','choose'].includes(it.type))ok=it.opts[st.sel]===it.c;
   else if(it.type.startsWith('arrange'))ok=normE(st.tiles.map(k=>it.bank.find(b=>b.k===k).w).join(' '))===normE(it.c.en);
   else if(['dictate','shadow','sayIt'].includes(it.type)){const m=wordDiff(st.typed,it.c.en);ok=m.close;close=ok&&!m.exact}
-  else if(it.type==='cloze')ok=normK(st.typed)===normK(it.q.a);
+  else if(it.type==='cloze')ok=it.copts?it.copts[st.sel]===it.q.a:normK(st.typed)===normK(it.q.a);
   finish(ok,close);
 }
 function finish(ok,close){
@@ -667,6 +679,7 @@ function viewHome(){
       </div></div>
       <div class="row"><span class="hint">하루 목표</span><div class="seg">${[20,30,50].map(g=>`<button data-act="goal" data-v="${g}" aria-pressed="${goal===g}">${g} XP</button>`).join('')}</div></div>
       <div class="row"><span class="hint">효과음</span><div class="seg"><button data-act="sfx" data-v="1" aria-pressed="${sfxOn()}">켜기</button><button data-act="sfx" data-v="0" aria-pressed="${!sfxOn()}">끄기</button></div></div>
+      <div class="row"><span class="hint">말하기 문제 <small>(지하철에선 끄기)</small></span><div class="seg"><button data-act="speakset" data-v="1" aria-pressed="${speakOn()}">켜기</button><button data-act="speakset" data-v="0" aria-pressed="${!speakOn()}">끄기</button></div></div>
   </div>
   <div style="display:flex;flex-direction:column;gap:8px"><h2>어느 노트로 공부할까요</h2><div class="hint">레슨마다 새 표현 ${LESSON_LEN-REVIEW_PER_LESSON}개를 노트 순서대로 배우고, 틀렸던 표현 ${REVIEW_PER_LESSON}개를 같이 복습해요. 날짜를 고르면 그날 노트만 나와요.</div>${srcChips(S.src,'src')}</div>
   ${(()=>{
@@ -677,13 +690,13 @@ function viewHome(){
     return `${done?`<div class="panel"><b>오늘 할 것을 다 했어요</b><div class="hint">이 노트의 새 표현은 모두 배웠고, 오늘 복습할 표현도 없어요. 새 노트를 올리거나 내일 다시 오면 복습할 표현이 생겨요.</div><div><button class="btn small" data-act="practice">그래도 배운 표현 다시 연습하기</button></div></div>`:''}
     <div class="meter">남은 새 표현 ${nNew}개 · 오늘 복습할 표현 ${nRev}개</div>
     <div class="starts">
-    ${btn('mix','main',ICON.mix,'레슨 시작',`새 표현 ${LESSON_LEN-REVIEW_PER_LESSON}개 + 복습 ${REVIEW_PER_LESSON}개 · 듣기·말하기·배열 섞어서`)}
-    ${btn('listen','',ICON.ear,'듣기 집중','듣고 뜻 고르기 · 듣고 받아쓰기 · 듣고 배열하기')}
-    ${btn('speak','',ICON.mouth,'말하기 집중','들은 대로 따라 말하기 · 뜻 보고 영어로 말하기')}
+    ${btn('mix','main',ICON.mix,'레슨 시작',`새 표현 ${LESSON_LEN-REVIEW_PER_LESSON}개 + 복습 ${REVIEW_PER_LESSON}개 · ${speakOn()?'듣기·말하기·배열 섞어서':'누르기만으로 풀기'}`)}
+    ${btn('listen','',ICON.ear,'듣기 집중','듣고 뜻 고르기 · 듣고 단어 배열하기')}
+    ${speakOn()?btn('speak','',ICON.mouth,'말하기 집중','들은 대로 따라 말하기 · 뜻 보고 영어로 말하기'):''}
     </div>
     ${saved&&saved.v===1?`<div><button class="btn small" data-act="newlesson" data-v="${saved.mode}">하던 레슨 버리고 새로 시작</button></div>`:''}`;
   })()}
-  <p class="hint">말하기·받아쓰기·빈칸 문제는 빨간 녹음 버튼을 누르고 영어로 말하면 앱이 알아듣고 채점해요. 놓친 단어에는 밑줄이 그어져요. 처음 한 번은 마이크 사용을 허용해 주세요.${TTS?'':' 이 기기에서는 읽어 주기가 안 돼서 듣기 문제가 빠져요.'}</p>
+  <p class="hint">타이핑하는 문제는 없어요. 모두 눌러서 풀어요.${speakOn()?' 말하기 문제는 빨간 녹음 버튼을 누르고 말하면 앱이 채점해요. 지하철처럼 말하기 어려운 곳에선 위에서 「말하기 문제」를 끄세요.':''}${TTS?'':' 이 기기에서는 읽어 주기가 안 돼서 듣기 문제가 빠져요.'}</p>
   <p class="hint" style="text-align:center">버전 ${APP_VER}</p>`;
 }
 const micInput=st=>`<div class="recwrap"><button class="rec ${st.listening?'on':''}" data-act="rec" aria-label="녹음" ${st.result?'disabled':''}>${ICON.mic}</button><span class="hint">${st.listening?'듣고 있어요. 말이 끝나면 아래에 적혀요.':'빨간 버튼을 누르고 영어로 말하세요. 잘못 적힌 글자는 고친 뒤 확인을 누르세요.'}</span></div><textarea id="typeIn" class="en" rows="2" placeholder="말한 내용이 여기에 적혀요 (직접 고쳐도 돼요)" autocomplete="off" autocapitalize="off" spellcheck="false" ${st.result?'disabled':''}>${esc(st.typed)}</textarea>`;
@@ -724,7 +737,8 @@ function viewLesson(){
     const ko=clozeKo(q);
     body=`<div class="slug">${esc(shortDate(n?.date))} — 셀프 퀴즈 ${q.n}번</div><div class="prompt en">${esc(q.q.replace(/\s*\([^)]*[가-힣][^)]*\)\s*/g,' ').trim()).replace(/(_{2,}\s*)+/g,'<span class="hl">　　　</span> ')}</div>
     ${ko.tr?`<div class="kohint">${esc(ko.tr)}</div>`:''}${ko.extra?`<div class="hint">${esc(ko.extra)}</div>`:''}
-    ${micInput(st)}`;
+    ${it.copts?`<div class="opts">${it.copts.map((o,k)=>{let cls='';if(st.result){if(o===q.a)cls='right';else if(st.sel===k)cls='wrong'}
+      return `<button class="opt en ${cls}" data-act="sel" data-v="${k}" aria-pressed="${st.sel===k}" ${st.result?'disabled':''}><span class="n">${k+1}</span><span>${esc(o)}</span></button>`}).join('')}</div>`:micInput(st)}`;
   }
   else if(it.type==='match'){
     ask='짝을 맞추세요';
@@ -871,6 +885,7 @@ document.addEventListener('click',e=>{
     case 'src':S.src=v;render();break;
     case 'goal':S.stats.goal=+v;dirty.add('stats');queueSave();render();break;
     case 'sfx':lsSet('sfx',v==='1');render();if(v==='1')sfx('ok');break;
+    case 'speakset':lsSet('speak',v==='1');render();toast(v==='1'?'말하기 문제를 다시 넣어요.':'이제 누르기만으로 푸는 문제만 나와요.');break;
     case 'mpick':mpick(v);break;
     case 'lesson':startLesson(v,L?.done);break;
     case 'newlesson':lsSet('lesson',null);startLesson(v,true);break;
@@ -918,7 +933,8 @@ document.addEventListener('keydown',e=>{
   if(S.lesson&&!S.lesson.done){
     const st=S.lesson.st,it=curItem();
     if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();if(st.result)next();else check();return}
-    if(!typing&&!st.result&&['listen','choose'].includes(it.type)&&/^[1-4]$/.test(e.key)&&it.opts[+e.key-1]){st.sel=+e.key-1;render()}
+    const opts=it.opts||it.copts;
+    if(!typing&&!st.result&&opts&&/^[1-4]$/.test(e.key)&&opts[+e.key-1]){st.sel=+e.key-1;render()}
     return;
   }
   if(S.tab!=='cards'||typing)return;
