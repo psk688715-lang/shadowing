@@ -193,7 +193,7 @@ body{margin:0;padding-top:env(safe-area-inset-top,0px)}
 
 <script>
 const IV=[0,1,2,4,7,15,30];
-const APP_VER='11.03-a';
+const APP_VER='11.03-b';
 const LESSON_LEN=10;          // cards per lesson
 const REVIEW_PER_LESSON=2;    // of those, due reviews when new cards remain
 /* progress counts only expressions a lesson can ask (cards with an English line) */
@@ -385,7 +385,7 @@ function typesFor(c,mode){
     if(sent)t.push(mode==='listen'&&TTS?'arrangeEar':'arrange');
     if(mode==='mix')t.push('choose');
   }
-  if(mode!=='listen'&&speakOn()){t.push('shadow');if((getP(c)?.b||0)>=1||mode==='speak')t.push('sayIt')}
+  if(mode!=='listen'&&speakOn())t.push('shadow');
   return t.length?t:['choose'];
 }
 function makeCloze(q){
@@ -692,7 +692,7 @@ function viewHome(){
     <div class="starts">
     ${btn('mix','main',ICON.mix,'레슨 시작',`새 표현 ${LESSON_LEN-REVIEW_PER_LESSON}개 + 복습 ${REVIEW_PER_LESSON}개 · ${speakOn()?'듣기·말하기·배열 섞어서':'누르기만으로 풀기'}`)}
     ${btn('listen','',ICON.ear,'듣기 집중','듣고 뜻 고르기 · 듣고 단어 배열하기')}
-    ${speakOn()?btn('speak','',ICON.mouth,'말하기 집중','들은 대로 따라 말하기 · 뜻 보고 영어로 말하기'):''}
+    ${speakOn()?btn('speak','',ICON.mouth,'말하기 집중','들은 대로 따라 말하기'):''}
     </div>
     ${saved&&saved.v===1?`<div><button class="btn small" data-act="newlesson" data-v="${saved.mode}">하던 레슨 버리고 새로 시작</button></div>`:''}`;
   })()}
