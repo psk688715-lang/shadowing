@@ -193,7 +193,7 @@ body{margin:0;padding-top:env(safe-area-inset-top,0px)}
 
 <script>
 const IV=[0,1,2,4,7,15,30];
-const APP_VER='11.03-b';
+const APP_VER='11.05-a';
 const LESSON_LEN=10;          // cards per lesson
 const REVIEW_PER_LESSON=2;    // of those, due reviews when new cards remain
 /* progress counts only expressions a lesson can ask (cards with an English line) */
@@ -229,6 +229,22 @@ function parseNote(md){
   const sec=()=>h3?h2+' · '+h3:h2;
   for(let i=0;i<L.length;i++){
     const line=L[i];
+    /* "## 1. blow minds — 뜻" with a body of **label:** lines and bullets (one expression per heading) */
+    if((m=line.match(/^##\s+\d+\.\s+(.+?)\s+[—–]\s+(.+)$/))&&isEn(strip(m[1]))){
+      let j=i+1;const body=[];
+      while(j<L.length&&!/^#{1,3}\s/.test(L[j])&&!/^---\s*$/.test(L[j])){body.push(L[j]);j++}
+      const extras=[];
+      for(let k=0;k<body.length;k++){
+        const b=body[k],bm=b.match(/^\s*(?:-\s+)?\*\*(.+?)\*\*\s*(.*)$/);
+        if(!bm||/^\s{2,}-/.test(b))continue;
+        let label=strip(bm[1]).replace(/[:：?]\s*$/,'').trim(),val=bm[2].replace(/^[:：]\s*/,'').trim();
+        if(!val){const sub=[];while(body[k+1]&&/^\s{2,}-\s+/.test(body[k+1]))sub.push(body[++k].replace(/^\s+-\s+/,''));val=sub.join(' / ')}
+        if(body[k+1]&&/^→/.test(body[k+1].trim()))val+=' '+body[++k].trim();
+        if(val)extras.push([label,val]);
+      }
+      cards.push({front:strip(m[1]),back:m[2].trim(),extras,sec:'표현 정리'});
+      h2='표현 정리';h3='';inQuiz=false;i=j-1;continue;
+    }
     if((m=line.match(/^##\s+(.*)/))){h2=strip(m[1]).replace(/^[^\w가-힣]+/,'');h3='';inQuiz=/퀴즈/.test(h2);continue}
     if((m=line.match(/^###\s+(.*)/))){
       const title=m[1].trim();let j=i+1;const body=[];
@@ -251,10 +267,13 @@ function parseNote(md){
       const head=cells(line);let j=i+2;const rows=[];
       while(j<L.length&&/^\s*\|/.test(L[j])){rows.push(cells(L[j]));j++}
       i=j-1;
+      /* a leading "#" numbering column carries no content */
+      if(head[0]==='#'){head.shift();rows.forEach(r=>r.shift())}
       const pair=head.length>=3&&/차이/.test(head[2]);
       const ko=/한국어/.test(head[0]);
       for(const r of rows){
         if(!r[0])continue;
+        if(head.length===2&&/차이/.test(head[1])){cards.push({front:strip(r[0]),back:r[1]||'—',extras:[],sec:sec(),kind:'pair'});continue}
         if(pair)cards.push({front:strip(r[0])+'  vs  '+strip(r[1]),back:r[2]||'—',extras:[],sec:sec(),kind:'pair'});
         else cards.push({front:strip(r[0]),back:r[1]||'',extras:head.slice(2).map((h,k)=>[h,r[k+2]||'']).filter(x=>x[1]),sec:sec(),kind:ko?'ko':''});
       }
@@ -274,11 +293,14 @@ function parseNote(md){
     }
     if((m=line.match(/^\s*(?:\d+\.|-)\s+\*\*(.+?)\*\*\s*(?:—|–|-|:)\s*(.+)$/))){
       const b=strip(m[1]);const eq=b.split(/\s+=\s+/);
+      /* only English → Korean-meaning items become cards (skips word-root lists and Korean labels) */
+      if(isEn(eq[0])&&!/[가-힣]/.test((eq.length>1?eq.slice(1).join(' '):'')+m[2]))continue;
+      if(isEn(eq[0])&&/\([^)]*[가-힣][^)]*\)/.test(m[1])&&eq.length===1&&!/[가-힣]{2,}/.test(m[2].replace(/\([^)]*\)/g,'')))continue;
       if(eq.length>1)cards.push({front:eq[0],back:eq.slice(1).join(' = '),extras:[['예문',m[2]]],sec:sec()});
       else cards.push({front:b,back:m[2],extras:[],sec:sec()});
       continue;
     }
-    if((m=line.match(/^\*\*(.+?)\*\*\s*[:：]\s*(.+)$/)))cards.push({front:strip(m[1]),back:m[2],extras:[],sec:sec()});
+    if((m=line.match(/^\*\*(.+?)\*\*\s*[:：]\s*(.+)$/))&&isEn(strip(m[1]))&&/[가-힣]/.test(m[2]))cards.push({front:strip(m[1]),back:m[2],extras:[],sec:sec()});
   }
   quiz.forEach(q=>q.a=ans[q.n]||'');
   return {cards,quiz};
@@ -298,7 +320,7 @@ function meanText(c){
   return s.replace(/\s+/g,' ').trim();
 }
 function buildNote(id,v){
-  v={...v,label:String(v.label||v.title||id).replace(/\s*쉐도잉\s*영어\s*표현\s*$/,'').trim()||v.label};
+  v={...v,label:String(v.label||v.title||id).replace(/\s*(쉐도잉\s*)?영어\s*(표현|정리)\s*$/,'').trim()||v.label};
   const p=parseNote(v.md||'');
   p.cards.forEach((c,i)=>{c.idx=i;c.note=id;c.id=hash(c.front+'|'+strip(c.back).slice(0,40));c.key=id+'/'+c.id;c.en=engText(c);c.ko=meanText(c);c.words=c.en?c.en.split(' ').length:0});
   p.quiz.forEach((q,k)=>{q.note=id;q.key=id+'/q'+k});
@@ -389,7 +411,7 @@ function typesFor(c,mode){
   return t.length?t:['choose'];
 }
 function makeCloze(q){
-  const parts=a=>a.split(/\s*,\s*/).length;
+  const parts=a=>a.split(/\s*[,\/]\s*/).length;
   const others=notesSorted().flatMap(n=>n.quiz).filter(x=>x.a&&normK(x.a)!==normK(q.a));
   let pool=shuffle(others.filter(x=>parts(x.a)===parts(q.a)).map(x=>x.a));
   if(pool.length<3)pool=pool.concat(shuffle(others.map(x=>x.a)));
@@ -414,7 +436,9 @@ function buildLesson(mode,src,practice){
   /* move forward: a couple of due reviews, then new cards in note order (oldest note first, top to bottom) */
   const t=today();
   const due=shuffle(pool.filter(c=>{const p=getP(c);return p&&p.d<=t})).sort((a,b)=>recentPenalty(a.key)-recentPenalty(b.key));
-  const neu=pool.filter(c=>!getP(c)).sort((a,b)=>(S.notes[a.note].date||'').localeCompare(S.notes[b.note].date||'')||a.note.localeCompare(b.note)||a.idx-b.idx);
+  /* dated daily notes first (oldest first), then the undated workbooks */
+  const nkey=c=>{const d=S.notes[c.note].date;return d?'0'+d:'1'};
+  const neu=pool.filter(c=>!getP(c)).sort((a,b)=>nkey(a).localeCompare(nkey(b))||a.note.localeCompare(b.note)||a.idx-b.idx);
   const later=pool.filter(c=>{const p=getP(c);return p&&p.d>t}).sort((a,b)=>getP(a).d<getP(b).d?-1:1);
   const nRev=neu.length?Math.min(REVIEW_PER_LESSON,due.length):due.length;
   pool=practice?shuffle(later):[...due.slice(0,nRev),...neu,...due.slice(nRev)];
@@ -609,7 +633,20 @@ function clozeKo(q){
   const tr=S.qko[q.note+'#'+q.n]||'';
   return {tr:tr||paren,extra:tr&&paren&&paren!==tr?paren:''};
 }
-function fillCloze(q){const parts=q.a.split(/\s*,\s*/);let i=0;return q.q.replace(/\([^)]*\)/g,'').replace(/(_{2,}\s*)+/g,m=>{const k=(m.match(/_{2,}/g)||[]).length;const w=parts.length>=k?parts.slice(i,i+k).join(' '):q.a;i+=k;return w+' '}).replace(/\s+/g,' ').trim()}
+/* answers come as "a, b", "a / b" or "a b c" — match them to blank groups, else to single blanks */
+function fillCloze(q){
+  const groups=q.q.match(/(_{2,}\s*)+/g)||[],nBlanks=groups.reduce((s,g)=>s+(g.match(/_{2,}/g)||[]).length,0);
+  const parts=q.a.split(/\s*[,\/]\s*/),words=q.a.split(/[\s,\/]+/).filter(Boolean);
+  let gi=0,bi=0;
+  return q.q.replace(/\([^)]*\)/g,'').replace(/(_{2,}\s*)+/g,m=>{
+    const k=(m.match(/_{2,}/g)||[]).length;let w;
+    if(parts.length===groups.length&&groups.length>1)w=parts[gi];
+    else if(parts.length>=nBlanks&&nBlanks>1)w=parts.slice(bi,bi+k).join(' ');
+    else if(groups.length>1&&words.length===nBlanks)w=words.slice(bi,bi+k).join(' ');
+    else w=q.a;
+    gi++;bi+=k;return w+' ';
+  }).replace(/\s+/g,' ').trim();
+}
 
 /* ---------- recording (browser speech recognition) ---------- */
 const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
