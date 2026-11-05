@@ -123,6 +123,11 @@ textarea:focus,input:focus{outline:2px solid var(--accent);outline-offset:0}
 .foot .msg b{font-size:17px}
 .foot.ok .msg b{color:var(--good)} .foot.no .msg b{color:var(--bad)}
 .foot .msg .en{font-family:var(--f-script);font-weight:700;overflow-wrap:anywhere}
+.foot .explain{max-height:38vh;overflow:auto;-webkit-overflow-scrolling:touch;border-top:1px solid var(--line);padding-top:8px;display:flex;flex-direction:column;gap:6px;font-size:14px;color:var(--ink)}
+.foot .explain .xh{font-size:12px;font-weight:700;color:var(--muted);letter-spacing:.04em}
+.foot .explain .xt{font-family:var(--f-script);font-weight:700}
+.foot .explain .en{font-family:var(--f-script);font-weight:700;overflow-wrap:anywhere}
+.foot .explain dl.ex{font-size:13.5px}
 .foot .acts{display:grid;grid-template-columns:1fr;gap:8px}
 .foot .acts.two{grid-template-columns:1fr 1fr}
 .foot.ok .btn.primary{background:var(--good);border-color:var(--good);color:var(--card)}
@@ -193,7 +198,7 @@ body{margin:0;padding-top:env(safe-area-inset-top,0px)}
 
 <script>
 const IV=[0,1,2,4,7,15,30];
-const APP_VER='11.05-a';
+const APP_VER='11.05-b';
 const LESSON_LEN=10;          // cards per lesson
 const REVIEW_PER_LESSON=2;    // of those, due reviews when new cards remain
 /* progress counts only expressions a lesson can ask (cards with an English line) */
@@ -628,6 +633,42 @@ function next(){
 }
 function prev(){stopRec();const L=S.lesson;if(L.i>0){L.i--;render()}}
 /* Korean meaning for a fill-in sentence: quiz-ko.json first, else the Korean the note put in parentheses */
+/* the note's own explanation for an answered exercise: meaning, origin, examples, tips */
+function explainCard(c,title){
+  if(!c)return '';
+  const rows=[['뜻',inl(c.back)],...c.extras.map(([k,v])=>[esc(k==='뜻'?'뜻 풀이':k),inl(v)])].filter(r=>r[1]);
+  return `${title?`<div class="xt">${esc(title)}</div>`:''}<dl class="ex">${rows.map(([k,v])=>`<dt>${k}</dt><dd>${v}</dd>`).join('')}</dl>`;
+}
+function relatedCard(q){
+  const s=normE(fillCloze(q)),ans=normE(q.a.replace(/[,\/]/g,' '));
+  const cs=(S.notes[q.note]?.cards||[]).filter(c=>c.en);
+  /* the card must carry at least one answer word, so a short grammar card can't hijack the match */
+  const aw=ans.split(' ').filter(Boolean),holds=c=>aw.some(w=>hasWords(normE(c.en),w));
+  const exact=cs.find(c=>holds(c)&&hasWords(s,normE(c.en)))||cs.find(c=>aw.every(w=>hasWords(normE(c.en),w)));
+  if(exact)return exact;
+  /* the answer phrase written inside a card's explanation (e.g. "반대말: out of it"), or glued into a word (party+goers) */
+  const inNotes=aw.length>=2&&cs.find(c=>hasWords(normE(c.back+' '+c.extras.map(x=>x[1]).join(' ')),ans));
+  if(inNotes)return inNotes;
+  const glued=aw.length===1&&aw[0].length>=4&&cs.find(c=>normE(c.en).includes(aw[0]));
+  if(glued)return glued;
+  /* inflected answers (blew my mind ↔ blow minds): compare word beginnings of the answer's content words */
+  const STOP=new Set(['the','and','you','your','my','his','her','its','our','their','one','ones','oneself','myself','yourself','someone','something','with','for','that','this','not','are','was','have','has']);
+  const stems=t=>normE(t).split(' ').filter(w=>w.length>=3&&!STOP.has(w)).map(w=>w.slice(0,4));
+  const want=stems(q.a.replace(/[,\/]/g,' '));if(!want.length)return null;
+  let best=null,bs=0;
+  for(const c of cs){const have=new Set(stems(c.en));const sc=want.filter(w=>have.has(w)).length/want.length;if(sc>bs){bs=sc;best=c}}
+  return bs>=.5?best:null;
+}
+function explainHtml(it){
+  let h='';
+  if(it.type==='match')h=it.pairs.map(c=>`<div><b class="en">${esc(c.en)}</b> — ${esc(c.ko)}</div>`).join('');
+  else if(it.type==='cloze'){
+    const ko=clozeKo(it.q),rc=relatedCard(it.q);
+    h=`<div class="en">${esc(fillCloze(it.q))}</div>${ko.tr?`<div>${esc(ko.tr)}</div>`:''}${rc?explainCard(rc,rc.front):''}`;
+  }
+  else h=explainCard(it.c);
+  return h?`<div class="explain"><div class="xh">해설</div>${h}</div>`:'';
+}
 function clozeKo(q){
   const m=q.q.match(/\(([^)]*[가-힣][^)]*)\)/);const paren=m?m[1].trim():'';
   const tr=S.qko[q.note+'#'+q.n]||'';
@@ -805,7 +846,7 @@ function viewLesson(){
       :res==='no'?`<b>정답</b><span class="en">${rightHtml}</span>${c?`<span>${esc(c.ko)}</span>`:''}${heard}`
       :`<b>${res==='close'?'거의 맞았어요':pick(['좋아요','맞았어요','잘했어요'])}</b>${combo}${res==='close'||['listen','dictate','sayIt'].includes(it.type)?`<span class="en">${rightHtml}</span>`:''}${c&&it.type==='listen'?`<span>${esc(c.ko)}</span>`:''}${heard}`;
     const ov=res==='no'&&spoken?`<button class="btn" data-act="override">제대로 말했어요</button>`:'';
-    foot=`<div class="foot ${res==='no'?'no':'ok'}"><div class="in"><div class="msg">${msg}</div><div class="acts ${ov?'two':''}">${ov}<button class="btn primary" data-act="next">계속<kbd>Enter</kbd></button></div></div></div>`;
+    foot=`<div class="foot ${res==='no'?'no':'ok'}"><div class="in"><div class="msg">${msg}</div>${explainHtml(it)}<div class="acts ${ov?'two':''}">${ov}<button class="btn primary" data-act="next">계속<kbd>Enter</kbd></button></div></div></div>`;
   }else if(it.type==='shadow'||it.type==='sayIt'){
     const sh=it.type==='shadow';
     foot=`<div class="foot"><div class="in"><div class="acts two"><button class="btn" data-act="${sh?'skipOk':'skipNo'}">${sh?'입력 없이 넘어가기':'모르겠어요'}</button><button class="btn primary" data-act="check" ${canCheck()?'':'disabled'}>확인<kbd>Enter</kbd></button></div></div></div>`;
