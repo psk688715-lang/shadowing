@@ -198,7 +198,7 @@ body{margin:0;padding-top:env(safe-area-inset-top,0px)}
 
 <script>
 const IV=[0,1,2,4,7,15,30];
-const APP_VER='11.05-c';
+const APP_VER='11.06';
 const LESSON_LEN=10;          // cards per lesson
 const REVIEW_PER_LESSON=2;    // of those, due reviews when new cards remain
 /* progress counts only expressions a lesson can ask (cards with an English line) */
@@ -274,6 +274,10 @@ function parseNote(md){
       i=j-1;
       /* a leading "#" numbering column carries no content */
       if(head[0]==='#'){head.shift();rows.forEach(r=>r.shift())}
+      /* a speaker column (남/여) is not the expression */
+      if(/^(누가|화자|speaker|who)$/i.test(head[0])){head.shift();rows.forEach(r=>r.shift())}
+      /* word-root and pronunciation-rule tables are reading notes, not cards */
+      if(/^(뿌리|어원|root|법칙)/i.test(strip(head[0]||'')))continue;
       const pair=head.length>=3&&/차이/.test(head[2]);
       const ko=/한국어/.test(head[0]);
       for(const r of rows){
@@ -286,13 +290,17 @@ function parseNote(md){
     }
     if(inQuiz){
       const qm=line.match(/^(\d+)\.\s+(.*_{2,}.*)$/);
-      if(qm){quiz.push({n:+qm[1],q:qm[2].trim(),sec:h2});continue}
+      /* quiz parts "### B. 빈칸 채우기" match answers under "**B.**" */
+      if(qm){quiz.push({n:+qm[1],q:qm[2].trim(),sec:h2,g:(h3.match(/^([A-Z])\./)||[])[1]||''});continue}
       if(/<summary>/.test(line)){
         let j=i+1,txt='';
         while(j<L.length&&!/<\/details>/.test(L[j])){txt+=' '+L[j];j++}
         i=j;
-        const re=/(\d+)\.\s*(.+?)(?=\s*·?\s*\d+\.\s|\s*$)/g;let a;
-        while((a=re.exec(txt.trim())))ans[a[1]]=strip(a[2]).replace(/\s*·\s*$/,'');
+        const parts=txt.split(/\*\*([A-Z])\.\*\*/);
+        for(let p=0;p<parts.length;p+=2){
+          const g=p?parts[p-1]:'',re=/(\d+)\.\s*(.+?)(?=\s*·?\s*\d+\.\s|\s*$)/g;let a;
+          while((a=re.exec(parts[p].trim())))ans[g+a[1]]=strip(a[2]).replace(/\s*·\s*$/,'');
+        }
       }
       continue;
     }
@@ -307,8 +315,14 @@ function parseNote(md){
     }
     if((m=line.match(/^\*\*(.+?)\*\*\s*[:：]\s*(.+)$/))&&isEn(strip(m[1]))&&/[가-힣]/.test(m[2]))cards.push({front:strip(m[1]),back:m[2],extras:[],sec:sec()});
   }
-  quiz.forEach(q=>q.a=ans[q.n]||'');
-  return {cards,quiz};
+  quiz.forEach(q=>{q.a=ans[q.g+q.n]||ans[q.n]||'';delete q.g});
+  /* the same English sentence twice in one note (script + expression table) stays one card */
+  const seen=new Set();
+  return {cards:cards.filter(c=>{
+    const f=strip(c.front).toLowerCase().replace(/[^a-z' ]/g,'').replace(/\s+/g,' ').trim();
+    if(!isEn(c.front)||f.split(' ').length<3)return true;
+    if(seen.has(f))return false;seen.add(f);return true;
+  }),quiz};
 }
 /* the English line to hear/say, and the Korean meaning to show */
 function engText(c){
@@ -686,7 +700,7 @@ function fillCloze(q){
     else if(groups.length>1&&words.length===nBlanks)w=words.slice(bi,bi+k).join(' ');
     else w=q.a;
     gi++;bi+=k;return w+' ';
-  }).replace(/\s+/g,' ').trim();
+  }).replace(/\*+/g,'').replace(/(^|\s)[AB]:\s+/g,'$1').replace(/\s+/g,' ').replace(/ ([.,?!])/g,'$1').trim();
 }
 
 /* ---------- recording (browser speech recognition) ---------- */
