@@ -123,11 +123,12 @@ textarea:focus,input:focus{outline:2px solid var(--accent);outline-offset:0}
 .foot .msg b{font-size:17px}
 .foot.ok .msg b{color:var(--good)} .foot.no .msg b{color:var(--bad)}
 .foot .msg .en{font-family:var(--f-script);font-weight:700;overflow-wrap:anywhere}
-.foot .explain{max-height:38vh;overflow:auto;-webkit-overflow-scrolling:touch;border-top:1px solid var(--line);padding-top:8px;display:flex;flex-direction:column;gap:6px;font-size:14px;color:var(--ink)}
+.foot .explain{max-height:48vh;overflow:auto;-webkit-overflow-scrolling:touch;border-top:1px solid var(--line);padding-top:8px;display:flex;flex-direction:column;gap:6px;font-size:14px;color:var(--ink)}
 .foot .explain .xh{font-size:12px;font-weight:700;color:var(--muted);letter-spacing:.04em}
 .foot .explain .xt{font-family:var(--f-script);font-weight:700}
 .foot .explain .en{font-family:var(--f-script);font-weight:700;overflow-wrap:anywhere}
 .foot .explain dl.ex{font-size:13.5px}
+dl.ex .mut{color:var(--muted);font-size:12.5px}
 .foot .acts{display:grid;grid-template-columns:1fr;gap:8px}
 .foot .acts.two{grid-template-columns:1fr 1fr}
 .foot.ok .btn.primary{background:var(--good);border-color:var(--good);color:var(--card)}
@@ -198,7 +199,7 @@ body{margin:0;padding-top:env(safe-area-inset-top,0px)}
 
 <script>
 const IV=[0,1,2,4,7,15,30];
-const APP_VER='11.06';
+const APP_VER='11.06-b';
 const LESSON_LEN=10;          // cards per lesson
 const REVIEW_PER_LESSON=2;    // of those, due reviews when new cards remain
 /* progress counts only expressions a lesson can ask (cards with an English line) */
@@ -230,7 +231,7 @@ const ICON={
 function cells(line){return line.trim().replace(/^\|/,'').replace(/\|$/,'').split('|').map(c=>c.trim())}
 function parseNote(md){
   const L=String(md).replace(/\r/g,'').split('\n');
-  const cards=[],quiz=[],ans={};let h2='',h3='',inQuiz=false,m;
+  const cards=[],quiz=[],ans={},refs=[];let h2='',h3='',inQuiz=false,m,lastRef=null;
   const sec=()=>h3?h2+' · '+h3:h2;
   for(let i=0;i<L.length;i++){
     const line=L[i];
@@ -276,15 +277,28 @@ function parseNote(md){
       if(head[0]==='#'){head.shift();rows.forEach(r=>r.shift())}
       /* a speaker column (남/여) is not the expression */
       if(/^(누가|화자|speaker|who)$/i.test(head[0])){head.shift();rows.forEach(r=>r.shift())}
-      /* word-root and pronunciation-rule tables are reading notes, not cards */
-      if(/^(뿌리|어원|root|법칙)/i.test(strip(head[0]||'')))continue;
+      /* word-root and pronunciation-rule tables are not cards — they feed the explanation of cards that use those words */
+      const h0=strip(head[0]||'');
+      if(/^(뿌리|어원|root)/i.test(h0)){
+        const ki=Math.max(head.findIndex(h=>/단어/.test(h)),2);
+        for(const r of rows)if(r[0])refs.push({t:'어원',keys:strip(r[ki]||'').replace(/[()]/g,' ').split(/[\/,]/).map(x=>x.trim()).filter(Boolean),
+          text:strip(r[0])+' = '+strip(r[1]||'')+(r[ki+1]?' · 같은 가족: '+strip(r[ki+1]):'')});
+        continue;
+      }
+      if(/^법칙/.test(h0)){
+        for(const r of rows)for(const part of strip(r[1]||'').split(/\s+\/\s+/)){
+          const pm=part.match(/^(.+?)\s*→\s*(.+)$/);if(pm)refs.push({t:'발음',keys:[pm[1]],text:pm[1]+' → '+pm[2]+' ('+strip(r[0])+')'});
+        }
+        continue;
+      }
+      const gram=/포인트|문법/.test(h0);
       const pair=head.length>=3&&/차이/.test(head[2]);
       const ko=/한국어/.test(head[0]);
       for(const r of rows){
         if(!r[0])continue;
         if(head.length===2&&/차이/.test(head[1])){cards.push({front:strip(r[0]),back:r[1]||'—',extras:[],sec:sec(),kind:'pair'});continue}
         if(pair)cards.push({front:strip(r[0])+'  vs  '+strip(r[1]),back:r[2]||'—',extras:[],sec:sec(),kind:'pair'});
-        else cards.push({front:strip(r[0]),back:r[1]||'',extras:head.slice(2).map((h,k)=>[h,r[k+2]||'']).filter(x=>x[1]),sec:sec(),kind:ko?'ko':''});
+        else cards.push({front:strip(r[0]),back:r[1]||'',extras:head.slice(2).map((h,k)=>[h,r[k+2]||'']).filter(x=>x[1]),sec:sec(),kind:ko?'ko':'',...(gram?{gram:1}:{})});
       }
       continue;
     }
@@ -304,6 +318,14 @@ function parseNote(md){
       }
       continue;
     }
+    /* theme groupings and clinic sentences: kept as explanation notes, then the normal list rules still run */
+    if(/테마|분류|진료실|응용/.test(h2)){
+      const bm=line.match(/^(\s*)-\s+(.+)$/),clinic=/진료실|응용/.test(h2);
+      const bolds=t=>[...t.matchAll(/\*\*([^*]+)\*\*/g)].map(x=>x[1].trim()).filter(isEn);
+      if(bm&&bm[1].length>=2&&lastRef)lastRef.text+=' — '+strip(bm[2]);
+      else if(bm)refs.push(lastRef={t:clinic?'진료실':'장면',keys:clinic?bolds(bm[2]):[],line:strip(bm[2]),text:(!clinic&&h3?h3+': ':'')+strip(bm[2])});
+      else if(clinic&&/^⚠️/.test(line))refs.push(lastRef={t:'주의',keys:bolds(line),text:strip(line.replace(/^⚠️\s*/,''))});
+    }
     if((m=line.match(/^\s*(?:\d+\.|-)\s+\*\*(.+?)\*\*\s*(?:—|–|-|:)\s*(.+)$/))){
       const b=strip(m[1]);const eq=b.split(/\s+=\s+/);
       /* only English → Korean-meaning items become cards (skips word-root lists and Korean labels) */
@@ -317,11 +339,14 @@ function parseNote(md){
   }
   quiz.forEach(q=>{q.a=ans[q.g+q.n]||ans[q.n]||'';delete q.g});
   /* the same English sentence twice in one note (script + expression table) stays one card */
-  const seen=new Set();
-  return {cards:cards.filter(c=>{
+  /* the duplicate's meaning and notes move onto the card that stays */
+  const seen=new Map();
+  return {refs,cards:cards.filter(c=>{
     const f=strip(c.front).toLowerCase().replace(/[^a-z' ]/g,'').replace(/\s+/g,' ').trim();
     if(!isEn(c.front)||f.split(' ').length<3)return true;
-    if(seen.has(f))return false;seen.add(f);return true;
+    const k=seen.get(f);
+    if(k){const more=[strip(c.back)!==strip(k.back)?c.back:'',...c.extras.map(e=>e[1])].filter(Boolean).join(' · ');if(more)k.extras.push(['풀이',more]);return false}
+    seen.set(f,c);return true;
   }),quiz};
 }
 /* the English line to hear/say, and the Korean meaning to show */
@@ -343,7 +368,7 @@ function buildNote(id,v){
   const p=parseNote(v.md||'');
   p.cards.forEach((c,i)=>{c.idx=i;c.note=id;c.id=hash(c.front+'|'+strip(c.back).slice(0,40));c.key=id+'/'+c.id;c.en=engText(c);c.ko=meanText(c);c.words=c.en?c.en.split(' ').length:0});
   p.quiz.forEach((q,k)=>{q.note=id;q.key=id+'/q'+k});
-  return {id,title:v.title||'',label:v.label||v.title||id,date:v.date||'',md:v.md||'',cards:p.cards,quiz:p.quiz};
+  return {id,title:v.title||'',label:v.label||v.title||id,date:v.date||'',md:v.md||'',cards:p.cards,quiz:p.quiz,refs:p.refs};
 }
 
 /* ---------- state ---------- */
@@ -648,9 +673,47 @@ function next(){
 function prev(){stopRec();const L=S.lesson;if(L.i>0){L.i--;render()}}
 /* Korean meaning for a fill-in sentence: quiz-ko.json first, else the Korean the note put in parentheses */
 /* the note's own explanation for an answered exercise: meaning, origin, examples, tips */
+/* everything else the same note says about this card: the phrases inside a sentence, the sentence a phrase came from,
+   grammar points, look-alike pairs, pronunciation, word roots, the scene it belongs to, clinic sentences */
+function noteLinks(c){
+  const n=S.notes[c.note];if(!n)return [];
+  const me=normE(c.en||strip(c.front)),words=me.split(' ').length,rows=[];
+  const has=(text,k)=>{k=normE(k).replace(/[~…]/g,'').trim();if(k.length<3)return false;
+    return hasWords(text,k)||(/^be /.test(k)&&k.split(' ').length>=2&&hasWords(text,k.slice(3)))};
+  const add=(label,html,max)=>{if(rows.filter(r=>r[0]===label).length<max&&!rows.some(r=>r[1]===html))rows.push([label,html])};
+  const others=n.cards.filter(x=>x!==c&&x.en&&!x.gram&&x.kind!=='pair');
+  if(words>=3)for(const x of others){if(x.words<=words&&/[a-z]{4}/.test(normE(x.en))&&has(me,x.en))
+    add('표현',`<b>${esc(x.en)}</b> — ${inl(x.back)}${x.extras.length?'<br><span class="mut">'+x.extras.map(e=>inl(e[1])).join(' · ')+'</span>':''}`,4)}
+  if(words<=5)for(const x of others)if(x.words>words&&x.words>=3&&has(normE(x.en),c.en||c.front))
+    add('원문',`<b>${esc(x.en)}</b> — ${inl(x.back)}`,2);
+  for(const x of n.cards.filter(x=>x.gram&&x!==c)){
+    const keys=[...strip(x.back.replace(/\*\*/g,'')).matchAll(/([A-Za-z][A-Za-z' ,.?!-]{3,})/g)].map(m=>m[1]);
+    const k2=[...x.back.replace(/\*\*/g,'').matchAll(/\*([^*]+)\*/g)].map(m=>m[1]).filter(t=>!/❌/.test(t));
+    if((k2.length?k2:keys).some(k=>k.split(' ').length>=2&&has(me,k.replace(/[.?!]+$/,''))))
+      add('문법',`<b>${esc(strip(x.front))}</b> — ${x.extras.map(e=>inl(e[1])).join(' · ')||inl(x.back)}`,2);
+  }
+  if(c.kind!=='pair')for(const x of n.cards.filter(x=>x.kind==='pair')){
+    const keys=strip(x.front).split(/\s+vs\s+|\s*\/\s*/).map(k=>k.replace(/\([^)]*\)|\+.*$/g,'').trim());
+    if(keys.some(k=>has(me,k)))add('헷갈리는 짝',`<b>${esc(strip(x.front))}</b> — ${inl(x.back)}`,2);
+  }
+  for(const r of n.refs||[]){
+    if(r.t==='장면'){const l=normE(r.line);if(words>=3?hasWords(l,me):false)add('장면',inl(r.text),1);continue}
+    if(r.t==='진료실'){
+      /* a bold key of 5+ letters (or 2+ words), or a shared two-word chunk like "aside from", "be patient" */
+      const l=normE(r.line.replace(/\s[—–-]\s.*$|\([^)]*[가-힣][^)]*\)/g,''));
+      const sw=new Set(['does','did','get','just','one','like','the','a','an','to','of','and','you','your','i','it','is','are','am','me','my','in','on','for','do','that','this','with','not','so','be','was','have','will']);
+      const bi=t=>{const w=t.split(' ');return w.slice(1).map((x,i)=>w[i]+' '+x).filter(b=>b.split(' ').some(x=>!sw.has(x)&&x.length>=4))};
+      const mine=new Set(bi(me));
+      if(r.keys.some(k=>(k.includes(' ')||k.length>=5)&&has(me,k))||bi(l).some(b=>mine.has(b)))add('진료실에서',inl(r.text),2);
+      continue;
+    }
+    if(r.keys.some(k=>has(me,k)))add(r.t,inl(r.text),r.t==='발음'?3:2);
+  }
+  return rows;
+}
 function explainCard(c,title){
   if(!c)return '';
-  const rows=[['뜻',inl(c.back)],...c.extras.map(([k,v])=>[esc(k==='뜻'?'뜻 풀이':k),inl(v)])].filter(r=>r[1]);
+  const rows=[['뜻',inl(c.back)],...c.extras.map(([k,v])=>[esc(k==='뜻'?'뜻 풀이':k),inl(v)])].filter(r=>r[1]).concat(noteLinks(c));
   return `${title?`<div class="xt">${esc(title)}</div>`:''}<dl class="ex">${rows.map(([k,v])=>`<dt>${k}</dt><dd>${v}</dd>`).join('')}</dl>`;
 }
 function relatedCard(q){
