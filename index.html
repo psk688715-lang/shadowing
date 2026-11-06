@@ -199,7 +199,7 @@ body{margin:0;padding-top:env(safe-area-inset-top,0px)}
 
 <script>
 const IV=[0,1,2,4,7,15,30];
-const APP_VER='11.06-b';
+const APP_VER='11.06-c';
 const LESSON_LEN=10;          // cards per lesson
 const REVIEW_PER_LESSON=2;    // of those, due reviews when new cards remain
 /* progress counts only expressions a lesson can ask (cards with an English line) */
@@ -372,7 +372,7 @@ function buildNote(id,v){
 }
 
 /* ---------- state ---------- */
-const S={notes:{},qko:{},prog:{},stats:{days:{},goal:30},db:null,uid:null,loaded:false,status:'',
+const S={notes:{},qko:{},xpl:{},prog:{},stats:{days:{},goal:30},db:null,uid:null,loaded:false,status:'',
   tab:lsGet('tab')||'home',src:'due',lesson:null,
   fc:{deck:'due',dir:'fwd',queue:[],qi:0,flipped:false,started:false,done:{known:0,fuzzy:0,miss:0}},
   openNote:null,confirmDel:null};
@@ -713,7 +713,10 @@ function noteLinks(c){
 }
 function explainCard(c,title){
   if(!c)return '';
-  const rows=[['뜻',inl(c.back)],...c.extras.map(([k,v])=>[esc(k==='뜻'?'뜻 풀이':k),inl(v)])].filter(r=>r[1]).concat(noteLinks(c));
+  /* a written explanation (explain.json: 유래·예문·메모) stands in for the note's short notes; clinic sentences still follow */
+  const x=S.xpl[c.note+'|'+c.front];
+  const rows=x?[['뜻',inl(c.back)],...Object.entries(x).map(([k,v])=>[esc(k),inl(v)]),...noteLinks(c).filter(r=>r[0]==='진료실에서')]
+    :[['뜻',inl(c.back)],...c.extras.map(([k,v])=>[esc(k==='뜻'?'뜻 풀이':k),inl(v)])].filter(r=>r[1]).concat(noteLinks(c));
   return `${title?`<div class="xt">${esc(title)}</div>`:''}<dl class="ex">${rows.map(([k,v])=>`<dt>${k}</dt><dd>${v}</dd>`).join('')}</dl>`;
 }
 function relatedCard(q){
@@ -1142,6 +1145,7 @@ async function start(){
   for(const id in base)if(!hidden.has(id))S.notes[id]=buildNote(id,base[id]);
   const loc=lsGet('notes')||{};for(const id in loc){const b=buildNote(id,loc[id]);b.local=true;S.notes[id]=b}
   try{const r=await fetch('quiz-ko.json',{cache:'no-cache'});if(r.ok)S.qko=await r.json()}catch(e){}
+  try{const r=await fetch('explain.json',{cache:'no-cache'});if(r.ok)S.xpl=await r.json()}catch(e){}
   try{const r=await fetch('audio/index.json',{cache:'no-cache'});if(r.ok)(await r.json()).forEach(h=>CLIPS.add(h))}catch(e){}
   S.prog=lsGet('prog')||{};S.stats=lsGet('stats')||S.stats;S.loaded=true;
   buildFC();render();
