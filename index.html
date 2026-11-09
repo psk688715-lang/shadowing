@@ -199,7 +199,7 @@ body{margin:0;padding-top:env(safe-area-inset-top,0px)}
 
 <script>
 const IV=[0,1,2,4,7,15,30];
-const APP_VER='11.06-c';
+const APP_VER='11.09';
 const LESSON_LEN=10;          // cards per lesson
 const REVIEW_PER_LESSON=2;    // of those, due reviews when new cards remain
 /* progress counts only expressions a lesson can ask (cards with an English line) */
@@ -250,6 +250,25 @@ function parseNote(md){
       }
       cards.push({front:strip(m[1]),back:m[2].trim(),extras,sec:'표현 정리'});
       h2='표현 정리';h3='';inQuiz=false;i=j-1;continue;
+    }
+    /* "## 1. Sentence" / "### 1. Sentence" with "- **뜻:**" (colon inside the bold), "- **예문**" + numbered sub-lines (11/07~) */
+    if((m=line.match(/^(##|###)\s+(?:\d+\.\s+)?(.+)$/))&&isEn(strip(m[2]))){
+      let j=i+1;const body=[];
+      while(j<L.length&&!/^#{1,3}\s/.test(L[j])&&!/^---\s*$/.test(L[j])){body.push(L[j]);j++}
+      const MEAN=/^\s*-\s*\*\*뜻\s*[:：]\s*\*\*\s*/,mean=body.find(b=>MEAN.test(b));
+      if(mean&&!body.some(b=>/^\s*-\s*\*\*뜻\*\*/.test(b))){
+        const extras=[];
+        for(let k=0;k<body.length;k++){
+          const b=body[k];if(b===mean)continue;
+          const bm=b.match(/^\s*-\s+\*\*(.+?)\*\*\s*(.*)$/);if(!bm)continue;
+          let label=strip(bm[1]).replace(/[:：?]+\s*$/,'').trim(),val=bm[2].replace(/^[:：]\s*/,'').trim();
+          if(!val){const sub=[];while(body[k+1]&&/^\s{2,}(?:-|\d+\.)\s+/.test(body[k+1]))sub.push(body[++k].replace(/^\s+(?:-|\d+\.)\s+/,''));val=sub.join(' / ')}
+          if(val)extras.push([label,val]);
+        }
+        if(m[1]==='##'){h2='표현 정리';h3='';inQuiz=false}
+        cards.push({front:strip(m[2]),back:mean.replace(MEAN,'').trim(),extras,sec:m[1]==='##'?'표현 정리':h2});
+        i=j-1;continue;
+      }
     }
     if((m=line.match(/^##\s+(.*)/))){h2=strip(m[1]).replace(/^[^\w가-힣]+/,'');h3='';inQuiz=/퀴즈/.test(h2);continue}
     if((m=line.match(/^###\s+(.*)/))){
@@ -303,7 +322,7 @@ function parseNote(md){
       continue;
     }
     if(inQuiz){
-      const qm=line.match(/^(\d+)\.\s+(.*_{2,}.*)$/);
+      const qm=line.replace(/\\_/g,'_').match(/^(\d+)\.\s+(.*_{2,}.*)$/);
       /* quiz parts "### B. 빈칸 채우기" match answers under "**B.**" */
       if(qm){quiz.push({n:+qm[1],q:qm[2].trim(),sec:h2,g:(h3.match(/^([A-Z])\./)||[])[1]||''});continue}
       if(/<summary>/.test(line)){
@@ -766,7 +785,7 @@ function fillCloze(q){
     else if(groups.length>1&&words.length===nBlanks)w=words.slice(bi,bi+k).join(' ');
     else w=q.a;
     gi++;bi+=k;return w+' ';
-  }).replace(/\*+/g,'').replace(/(^|\s)[AB]:\s+/g,'$1').replace(/\s+/g,' ').replace(/ ([.,?!])/g,'$1').trim();
+  }).replace(/\*+/g,'').replace(/(^|\s)[AB]:\s+/g,'$1').replace(/\s+/g,' ').replace(/ ([.,?!])/g,'$1').replace(/(\w) -(\w)/g,'$1-$2').trim();
 }
 
 /* ---------- recording (browser speech recognition) ---------- */

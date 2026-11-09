@@ -3,14 +3,19 @@
 const fs=require('fs'),path=require('path');
 const dir='G:/내 드라이브/세컨브레인/3. Resource/영어공부/';
 const notes={};
-for(const f of fs.readdirSync(dir).filter(f=>/^\d{4}-\d{2}-\d{2}.*\.md$/.test(f)).sort()){
+/* keep ids already published (study records are keyed by id); new files get the next free id */
+const out=path.join(__dirname,'notes.json');
+const old=fs.existsSync(out)?JSON.parse(fs.readFileSync(out,'utf8')).notes:{};
+const oldId={};for(const k in old)if(old[k].date)oldId[old[k].date+'|'+old[k].label]=k;
+const files=fs.readdirSync(dir).filter(f=>/^\d{4}-\d{2}-\d{2}.*\.md$/.test(f)).sort();
+const labelOf=f=>f.replace(/\.md$/,'').replace(/^\d{4}-\d{2}-\d{2}(\+\d{2})*[_ -]*/,'').replace(/_/g,' ').trim();
+const used=new Set(Object.keys(old));
+for(const f of files){
   const md=fs.readFileSync(dir+f,'utf8'),date=f.slice(0,10);
-  let id='n-'+date;
-  if(notes[id])id+='-'+notes[id+'#n']++;else notes[id+'#n']=2;
-  notes[id]={title:((md.match(/^#\s+(.+)$/m)||[])[1]||'').replace(/\*\*|\*|`/g,'').trim(),
-    label:f.replace(/\.md$/,'').replace(/^\d{4}-\d{2}-\d{2}[_ -]*/,'').replace(/_/g,' ').trim(),date,md};
+  let id=oldId[date+'|'+labelOf(f)];
+  if(!id){id='n-'+date;for(let i=2;used.has(id);i++)id='n-'+date+'-'+i;used.add(id);}
+  notes[id]={title:((md.match(/^#\s+(.+)$/m)||[])[1]||'').replace(/\*\*|\*|`/g,'').trim(),label:labelOf(f),date,md};
 }
-for(const k of Object.keys(notes))if(k.endsWith('#n'))delete notes[k];
 /* workbooks: undated, so they sort before the dated shadowing notes; 4판 before 5판 by id */
 const books=dir+'스터디북/';
 if(fs.existsSync(books))for(const f of fs.readdirSync(books).filter(f=>f.endsWith('.md')).sort()){
