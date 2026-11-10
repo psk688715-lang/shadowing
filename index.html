@@ -199,7 +199,7 @@ body{margin:0;padding-top:env(safe-area-inset-top,0px)}
 
 <script>
 const IV=[0,1,2,4,7,15,30];
-const APP_VER='11.09';
+const APP_VER='11.10';
 const LESSON_LEN=10;          // cards per lesson
 const REVIEW_PER_LESSON=2;    // of those, due reviews when new cards remain
 /* progress counts only expressions a lesson can ask (cards with an English line) */
@@ -251,8 +251,8 @@ function parseNote(md){
       cards.push({front:strip(m[1]),back:m[2].trim(),extras,sec:'표현 정리'});
       h2='표현 정리';h3='';inQuiz=false;i=j-1;continue;
     }
-    /* "## 1. Sentence" / "### 1. Sentence" with "- **뜻:**" (colon inside the bold), "- **예문**" + numbered sub-lines (11/07~) */
-    if((m=line.match(/^(##|###)\s+(?:\d+\.\s+)?(.+)$/))&&isEn(strip(m[2]))){
+    /* "## 1. Sentence" / "### 1. Sentence" / "### 1) phrase" with "- **뜻:**" (colon inside the bold), "- **예문**" + numbered sub-lines (11/07~) */
+    if((m=line.match(/^(##|###)\s+(?:\d+[.)]\s+)?(.+)$/))&&isEn(strip(m[2]))){
       let j=i+1;const body=[];
       while(j<L.length&&!/^#{1,3}\s/.test(L[j])&&!/^---\s*$/.test(L[j])){body.push(L[j]);j++}
       const MEAN=/^\s*-\s*\*\*뜻\s*[:：]\s*\*\*\s*/,mean=body.find(b=>MEAN.test(b));
@@ -313,6 +313,11 @@ function parseNote(md){
       const gram=/포인트|문법/.test(h0);
       const pair=head.length>=3&&/차이/.test(head[2]);
       const ko=/한국어/.test(head[0]);
+      /* a two-column table of English opposites ("무너지는 쪽 | 다시 모으는 쪽") is a pair list, not expression → meaning */
+      if(head.length===2&&!/[A-Za-z]/.test(head.join(''))&&rows.length&&rows.every(r=>r[0]&&isEn(r[0])&&r[1]&&isEn(r[1])&&!/[가-힣]/.test(r[0]+r[1]))){
+        for(const r of rows)cards.push({front:strip(r[0])+'  ↔  '+strip(r[1]),back:strip(head[0])+' ↔ '+strip(head[1]),extras:[],sec:sec(),kind:'pair'});
+        continue;
+      }
       for(const r of rows){
         if(!r[0])continue;
         if(head.length===2&&/차이/.test(head[1])){cards.push({front:strip(r[0]),back:r[1]||'—',extras:[],sec:sec(),kind:'pair'});continue}
@@ -362,7 +367,8 @@ function parseNote(md){
   const seen=new Map();
   return {refs,cards:cards.filter(c=>{
     const f=strip(c.front).toLowerCase().replace(/[^a-z' ]/g,'').replace(/\s+/g,' ').trim();
-    if(!isEn(c.front)||f.split(' ').length<3)return true;
+    /* short phrases merge too, but only an expression card into an expression card (not grammar/pair/Korean-front rows) */
+    if(!isEn(c.front)||!f||(f.split(' ').length<3&&(c.kind||c.gram)))return true;
     const k=seen.get(f);
     if(k){const more=[strip(c.back)!==strip(k.back)?c.back:'',...c.extras.map(e=>e[1])].filter(Boolean).join(' · ');if(more)k.extras.push(['풀이',more]);return false}
     seen.set(f,c);return true;
