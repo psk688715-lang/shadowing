@@ -199,7 +199,7 @@ body{margin:0;padding-top:env(safe-area-inset-top,0px)}
 
 <script>
 const IV=[0,1,2,4,7,15,30];
-const APP_VER='11.10';
+const APP_VER='11.10-b';
 const LESSON_LEN=10;          // cards per lesson
 const REVIEW_PER_LESSON=2;    // of those, due reviews when new cards remain
 /* progress counts only expressions a lesson can ask (cards with an English line) */
@@ -361,7 +361,9 @@ function parseNote(md){
     }
     if((m=line.match(/^\*\*(.+?)\*\*\s*[:：]\s*(.+)$/))&&isEn(strip(m[1]))&&/[가-힣]/.test(m[2]))cards.push({front:strip(m[1]),back:m[2],extras:[],sec:sec()});
   }
-  quiz.forEach(q=>{q.a=ans[q.g+q.n]||ans[q.n]||'';delete q.g});
+  quiz.forEach(q=>{q.a=ans[q.g+q.n]||ans[q.n]||'';delete q.g;
+    /* "off (또는 across)": the first word fills the sentence, the other is also accepted */
+    const am=q.a.match(/^(.+?)\s*\((?:또는|or)\s+([^)]+)\)\s*$/);if(am){q.a=am[1];q.alt=am[2].split(/\s*[,\/]\s*/)}});
   /* the same English sentence twice in one note (script + expression table) stays one card */
   /* the duplicate's meaning and notes move onto the card that stays */
   const seen=new Map();
@@ -620,7 +622,7 @@ function check(){
   if(['listen','choose'].includes(it.type))ok=it.opts[st.sel]===it.c;
   else if(it.type.startsWith('arrange'))ok=normE(st.tiles.map(k=>it.bank.find(b=>b.k===k).w).join(' '))===normE(it.c.en);
   else if(['dictate','shadow','sayIt'].includes(it.type)){const m=wordDiff(st.typed,it.c.en);ok=m.close;close=ok&&!m.exact}
-  else if(it.type==='cloze')ok=it.copts?it.copts[st.sel]===it.q.a:normK(st.typed)===normK(it.q.a);
+  else if(it.type==='cloze')ok=it.copts?it.copts[st.sel]===it.q.a:[it.q.a,...(it.q.alt||[])].some(a=>normK(st.typed)===normK(a));
   finish(ok,close);
 }
 function finish(ok,close){
