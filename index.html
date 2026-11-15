@@ -199,7 +199,7 @@ body{margin:0;padding-top:env(safe-area-inset-top,0px)}
 
 <script>
 const IV=[0,1,2,4,7,15,30];
-const APP_VER='11.15';
+const APP_VER='11.15-b';
 const LESSON_LEN=10;          // cards per lesson
 const REVIEW_PER_LESSON=2;    // of those, due reviews when new cards remain
 /* progress counts only expressions a lesson can ask (cards with an English line) */
@@ -297,6 +297,8 @@ function parseNote(md){
       /* a speaker column (남/여) is not the expression */
       if(/^(누가|화자|speaker|who)$/i.test(head[0])){head.shift();rows.forEach(r=>r.shift())}
       /* word-root and pronunciation-rule tables are not cards — they feed the explanation of cards that use those words */
+      /* a source column (출처: which show the line is from) is a note, not the meaning — it moves to the end */
+      if(head.length>=3&&/^출처$/.test(strip(head[1]))){const n=head.length;rows.forEach(r=>{while(r.length<n)r.push('');r.push(r.splice(1,1)[0])});head.push(head.splice(1,1)[0])}
       const h0=strip(head[0]||'');
       if(/^(뿌리|어원|root)/i.test(h0)){
         const ki=Math.max(head.findIndex(h=>/단어/.test(h)),2);
@@ -363,7 +365,7 @@ function parseNote(md){
   }
   quiz.forEach(q=>{q.a=ans[q.g+q.n]||ans[q.n]||'';delete q.g;
     /* "off (또는 across)": the first word fills the sentence, the other is also accepted */
-    const am=q.a.match(/^(.+?)\s*\((?:또는|or)\s+([^)]+)\)\s*$/);if(am){q.a=am[1];q.alt=am[2].split(/\s*[,\/]\s*/)}});
+    const am=q.a.match(/^(.+?)\s*\((?:또는|or)\s+([^)]+)\)\s*$/)||q.a.match(/^(.+?)\s*\(([^)가-힣]+?)도\s*가능\)\s*$/);if(am){q.a=am[1];q.alt=am[2].split(/\s*[,\/]\s*/)}});
   /* the same English sentence twice in one note (script + expression table) stays one card */
   /* the duplicate's meaning and notes move onto the card that stays */
   const seen=new Map();
@@ -372,7 +374,8 @@ function parseNote(md){
     /* short phrases merge too, but only an expression card into an expression card (not grammar/pair/Korean-front rows) */
     if(!isEn(c.front)||!f||(f.split(' ').length<3&&(c.kind||c.gram)))return true;
     const k=seen.get(f);
-    if(k){const more=[strip(c.back)!==strip(k.back)?c.back:'',...c.extras.map(e=>e[1])].filter(Boolean).join(' · ');if(more)k.extras.push(['풀이',more]);return false}
+    /* the duplicate keeps its own labels (왜·예문·세트) so the explanation shows them as separate rows */
+    if(k){if(c.back&&strip(c.back)!==strip(k.back))k.extras.push([c.kind==='pair'?'짝':/발음|연음/.test(c.sec||'')?'발음':'뜻 풀이',c.back]);for(const e of c.extras)if(e[1])k.extras.push(e);return false}
     seen.set(f,c);return true;
   }),quiz};
 }
@@ -710,28 +713,30 @@ function noteLinks(c){
   const add=(label,html,max)=>{if(rows.filter(r=>r[0]===label).length<max&&!rows.some(r=>r[1]===html))rows.push([label,html])};
   const others=n.cards.filter(x=>x!==c&&x.en&&!x.gram&&x.kind!=='pair');
   if(words>=3)for(const x of others){if(x.words<=words&&/[a-z]{4}/.test(normE(x.en))&&has(me,x.en))
-    add('표현',`<b>${esc(x.en)}</b> — ${inl(x.back)}${x.extras.length?'<br><span class="mut">'+x.extras.map(e=>inl(e[1])).join(' · ')+'</span>':''}`,4)}
+    /* rows of the note's pronunciation table (발음 · 연음) get their own label */
+    if(/발음|연음/.test(x.sec||''))add('발음',`<b>${esc(x.en)}</b> → ${inl(x.back)}${x.extras.length?' <span class="mut">('+x.extras.map(e=>inl(e[1])).join(' · ')+')</span>':''}`,3);
+    else add('표현',`<b>${esc(x.en)}</b> — ${inl(x.back)}${x.extras.length?'<br><span class="mut">'+x.extras.map(e=>(/^(왜|예문|뜻 풀이|세트|유래|메모)$/.test(e[0])?'<b>'+esc(e[0])+'</b> ':'')+inl(e[1])).join('<br>')+'</span>':''}`,4)}
   if(words<=5)for(const x of others)if(x.words>words&&x.words>=3&&has(normE(x.en),c.en||c.front))
     add('원문',`<b>${esc(x.en)}</b> — ${inl(x.back)}`,2);
   for(const x of n.cards.filter(x=>x.gram&&x!==c)){
     const keys=[...strip(x.back.replace(/\*\*/g,'')).matchAll(/([A-Za-z][A-Za-z' ,.?!-]{3,})/g)].map(m=>m[1]);
     const k2=[...x.back.replace(/\*\*/g,'').matchAll(/\*([^*]+)\*/g)].map(m=>m[1]).filter(t=>!/❌/.test(t));
     if((k2.length?k2:keys).some(k=>k.split(' ').length>=2&&has(me,k.replace(/[.?!]+$/,''))))
-      add('문법',`<b>${esc(strip(x.front))}</b> — ${x.extras.map(e=>inl(e[1])).join(' · ')||inl(x.back)}`,2);
+      add('문법',`<b>${esc(strip(x.front))}</b> — ${x.extras.map(e=>inl(e[1])).join(' · ')||inl(x.back)}`,3);
   }
   if(c.kind!=='pair')for(const x of n.cards.filter(x=>x.kind==='pair')){
     const keys=strip(x.front).split(/\s+vs\s+|\s*\/\s*/).map(k=>k.replace(/\([^)]*\)|\+.*$/g,'').trim());
-    if(keys.some(k=>has(me,k)))add('헷갈리는 짝',`<b>${esc(strip(x.front))}</b> — ${inl(x.back)}`,2);
+    if(keys.some(k=>has(me,k)))add('헷갈리는 짝',`<b>${esc(strip(x.front))}</b> — ${inl(x.back)}`,4);
   }
   for(const r of n.refs||[]){
     if(r.t==='장면'){const l=normE(r.line);if(words>=3?hasWords(l,me):false)add('장면',inl(r.text),1);continue}
     if(r.t==='진료실'){
       /* a bold key of 5+ letters (or 2+ words), or a shared two-word chunk like "aside from", "be patient" */
       const l=normE(r.line.replace(/\s[—–-]\s.*$|\([^)]*[가-힣][^)]*\)/g,''));
-      const sw=new Set(['does','did','get','just','one','like','the','a','an','to','of','and','you','your','i','it','is','are','am','me','my','in','on','for','do','that','this','with','not','so','be','was','have','will']);
+      const sw=new Set(['there','theres',"there's",'does','did','get','just','one','like','the','a','an','to','of','and','you','your','i','it','is','are','am','me','my','in','on','for','do','that','this','with','not','so','be','was','have','will']);
       const bi=t=>{const w=t.split(' ');return w.slice(1).map((x,i)=>w[i]+' '+x).filter(b=>b.split(' ').some(x=>!sw.has(x)&&x.length>=4))};
       const mine=new Set(bi(me));
-      if(r.keys.some(k=>(k.includes(' ')||k.length>=5)&&has(me,k))||bi(l).some(b=>mine.has(b)))add('진료실에서',inl(r.text),2);
+      if(r.keys.some(k=>(k.includes(' ')||k.length>=5)&&has(me,k))||bi(l).some(b=>mine.has(b)))add('진료실에서',inl(r.text),3);
       continue;
     }
     if(r.keys.some(k=>has(me,k)))add(r.t,inl(r.text),r.t==='발음'?3:2);
