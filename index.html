@@ -199,7 +199,7 @@ body{margin:0;padding-top:env(safe-area-inset-top,0px)}
 
 <script>
 const IV=[0,1,2,4,7,15,30];
-const APP_VER='11.15-b';
+const APP_VER='11.15-c';
 const LESSON_LEN=10;          // cards per lesson
 const REVIEW_PER_LESSON=2;    // of those, due reviews when new cards remain
 /* progress counts only expressions a lesson can ask (cards with an English line) */
@@ -712,6 +712,15 @@ function noteLinks(c){
     return hasWords(text,k)||(/^be /.test(k)&&k.split(' ').length>=2&&hasWords(text,k.slice(3)))};
   const add=(label,html,max)=>{if(rows.filter(r=>r[0]===label).length<max&&!rows.some(r=>r[1]===html))rows.push([label,html])};
   const others=n.cards.filter(x=>x!==c&&x.en&&!x.gram&&x.kind!=='pair');
+  /* the note's detailed entry for this line (뜻·왜·예문) when its title is written with "~", "/" or "→"
+     ("I haven't ~ since we got in that fight", "Sure thing!" for "Can I talk to him? → Sure thing!"): every piece must be in the line */
+  const full=normE(strip(c.front).replace(/\([^)]*[가-힣][^)]*\)/g,' '));
+  const xrow=x=>`<b>${esc(strip(x.front))}</b> — ${inl(x.back)}${x.extras.length?'<br><span class="mut">'+x.extras.map(e=>(/^(왜|예문|뜻 풀이|세트|유래|메모)$/.test(e[0])?'<b>'+esc(e[0])+'</b> ':'')+inl(e[1])).join('<br>')+'</span>':''}`;
+  if(!c.gram&&c.kind!=='pair')for(const x of n.cards){
+    if(x===c||x.gram||x.kind==='pair'||!x.extras.some(e=>/^(왜|예문|유래)$/.test(e[0])))continue;
+    const ch=strip(x.front).split(/~|→|\s\/\s|…/).map(k=>normE(k).trim()).filter(k=>k.split(' ').length>=2||k.length>=6);
+    if(ch.length&&ch.every(k=>hasWords(full,k)))add('표현',xrow(x),4);
+  }
   if(words>=3)for(const x of others){if(x.words<=words&&/[a-z]{4}/.test(normE(x.en))&&has(me,x.en))
     /* rows of the note's pronunciation table (발음 · 연음) get their own label */
     if(/발음|연음/.test(x.sec||''))add('발음',`<b>${esc(x.en)}</b> → ${inl(x.back)}${x.extras.length?' <span class="mut">('+x.extras.map(e=>inl(e[1])).join(' · ')+')</span>':''}`,3);
