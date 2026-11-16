@@ -199,7 +199,7 @@ body{margin:0;padding-top:env(safe-area-inset-top,0px)}
 
 <script>
 const IV=[0,1,2,4,7,15,30];
-const APP_VER='11.16';
+const APP_VER='11.16-b';
 const LESSON_LEN=10;          // cards per lesson
 const REVIEW_PER_LESSON=2;    // of those, due reviews when new cards remain
 /* progress counts only expressions a lesson can ask (cards with an English line) */
@@ -740,6 +740,19 @@ function noteLinks(c){
     else add('표현',`<b>${esc(x.en)}</b> — ${inl(x.back)}${x.extras.length?'<br><span class="mut">'+x.extras.map(e=>(/^(왜|예문|뜻 풀이|세트|유래|메모)$/.test(e[0])?'<b>'+esc(e[0])+'</b> ':'')+inl(e[1])).join('<br>')+'</span>':''}`,4)}
   if(words<=5)for(const x of others)if(x.words>words&&x.words>=3&&has(normE(x.en),c.en||c.front))
     add('원문',`<b>${esc(x.en)}</b> — ${inl(x.back)}`,2);
+  /* a short word card with no example borrows the detailed entry (뜻·왜·예문) of the line it comes from: caking ← My makeup's caking (11/16) */
+  if((words<=5||c.kind==='pair')&&!c.gram&&!c.extras.some(e=>e[0]==='예문')){
+    const alts=strip(c.front).replace(/\([^)]*\)/g,' ').split(/\s\/\s/).map(a=>a.split(/~|…/).map(k=>normE(k).trim()).filter(Boolean)).filter(a=>a.length);
+    for(const x of n.cards){
+      if(x===c||x.gram||x.kind==='pair'||!x.extras.some(e=>e[0]==='예문'))continue;
+      const t=normE(strip(x.front)+' '+(x.en||''));
+      if(alts.some(a=>a.every(k=>hasWords(t,k)||looseWords(t,k)))){
+        /* the bare "원문" row for that same line is now redundant */
+        const dup=rows.findIndex(r=>r[0]==='원문'&&x.en&&r[1].startsWith(`<b>${esc(x.en)}</b>`));if(dup>=0)rows.splice(dup,1);
+        add('표현',xrow(x),2);
+      }
+    }
+  }
   for(const x of n.cards.filter(x=>x.gram&&x!==c)){
     const keys=[...strip(x.back.replace(/\*\*/g,'')).matchAll(/([A-Za-z][A-Za-z' ,.?!-]{3,})/g)].map(m=>m[1]);
     const k2=[...x.back.replace(/\*\*/g,'').matchAll(/\*([^*]+)\*/g)].map(m=>m[1]).filter(t=>!/❌/.test(t));
@@ -771,6 +784,9 @@ function explainCard(c,title){
   const x=S.xpl[c.note+'|'+c.front];
   const rows=x?[['뜻',inl(c.back)],...Object.entries(x).map(([k,v])=>[esc(k),inl(v)]),...noteLinks(c).filter(r=>r[0]==='진료실에서')]
     :[['뜻',inl(c.back)],...c.extras.map(([k,v])=>[esc(k==='뜻'?'뜻 풀이':k),inl(v)])].filter(r=>r[1]).concat(noteLinks(c));
+  /* "+note|front" in explain.json adds Claude's 유래·예문 after the note's own explanation, which stays (11/16) */
+  const plus=S.xpl['+'+c.note+'|'+c.front];
+  if(plus)for(const [k,v] of Object.entries(plus))rows.push([esc(k),String(v).split('<br>').map(inl).join('<br>')]);
   return `${title?`<div class="xt">${esc(title)}</div>`:''}<dl class="ex">${rows.map(([k,v])=>`<dt>${k}</dt><dd>${v}</dd>`).join('')}</dl>`;
 }
 function relatedCard(q){

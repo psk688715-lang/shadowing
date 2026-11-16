@@ -154,7 +154,6 @@
   "예문": "*I've never told anyone this before.* — 이 얘기 누구한테도 한 적 없어요.",
   "메모": "📌 tell + 사람 + this(내용). '당신이 처음이에요'라는 특별함을 주는 말이에요."
  },
-
  "n-2026-11-06-2|We used to do this all the time with just Storm, so now Aire is joining us": {
   "유래": "used to = 예전엔 늘 ~했다(지금은 달라짐). is joining은 진행형이라 '요즘 새로 합류했다'는 변화가 느껴져요.",
   "예문": "*I used to play tennis every weekend.* — 예전엔 주말마다 테니스 쳤어.",
@@ -294,5 +293,56 @@
   "유래": "What I do(내가 하는 것)가 통째로 주어예요.",
   "예문": "*Nothing I do is ever good enough for her.* — 내가 뭘 해도 그 사람한테는 절대 성에 안 차.",
   "메모": "📌 enough는 형용사 뒤(good enough), 명사 앞(enough time). 더 자연스러운 말은 Nothing I do is ever good enough."
+ },
+ "+n-2026-11-16|Don't litter.": {
+  "예문": "*Please don't litter in the park.* — 공원에 쓰레기 버리지 마세요.<br>*He got fined for littering on the highway.* — 고속도로에 쓰레기를 버려서 벌금을 냈어.<br>*Littering is a $500 fine here.* — 여기선 쓰레기 무단투기가 벌금 500달러예요."
+ },
+ "+n-2026-11-16|Like a kid-kid? Like a human kid, not a baby goat?": {
+  "예문": "*Do you like him, or like-like him?* — 그냥 좋아하는 거야, 아니면 이성으로 좋아하는 거야?<br>*I'm not tired, I'm tired-tired.* — 그냥 피곤한 게 아니라 진짜 녹초야.<br>*Like, you mean today?* — 그러니까, 오늘 말하는 거야?"
+ },
+ "+n-2026-11-16|I'm not keeping anything from you.": {
+  "예문": "*I promise I'm not keeping anything from you.* — 맹세코 너한테 숨기는 거 없어.<br>*Are you keeping something from me?* — 나한테 뭐 숨기는 거 있어?<br>*The doctor didn't keep anything from the family.* — 의사는 가족에게 아무것도 숨기지 않았어."
+ },
+ "+n-2026-11-16|Tie my apron.": {
+  "예문": "*Can you tie my apron? I can't reach the back.* — 앞치마 끈 좀 묶어 줄래? 뒤에 손이 안 닿아.<br>*Put on an apron so you don't get paint on your clothes.* — 옷에 페인트 안 묻게 앞치마 둘러.<br>*Untie my apron, please.* — 앞치마 끈 좀 풀어 줘."
+ },
+ "+n-2026-11-16|Shake off the nerves, shake off the anxiety, shake it off!": {
+  "예문": "*Take a deep breath and shake off the nerves before you go on stage.* — 무대 올라가기 전에 숨 크게 쉬고 긴장 털어.<br>*She lost the first set but shook it off and won the match.* — 첫 세트를 졌지만 털어내고 경기를 이겼어.<br>*It took me a week to shake off this cold.* — 이 감기 떨쳐내는 데 일주일 걸렸어."
+ },
+ "+n-2026-11-16|whitewash": {
+  "유래": "white(흰) + wash(바르다) = 석회를 물에 타서 벽에 바르던 값싼 흰 칠. 낡고 얼룩진 벽을 덮어 깨끗해 보이게 했어요 → '잘못·사실을 덮어 감추다'로 넓어졌어요. 요즘은 '(영화 캐스팅 등에서) 백인으로 바꾸다'라는 뜻으로도 많이 써요.",
+  "예문": "*The report tried to whitewash the company's mistakes.* — 보고서는 회사의 실수를 덮으려 했어.<br>*Fans criticized the movie for whitewashing an Asian character.* — 팬들은 아시아인 캐릭터를 백인으로 바꿨다고 영화를 비판했어.<br>*This sunscreen leaves a white cast.* — 이 선크림은 백탁이 생겨.",
+  "메모": "📌 얼굴이 허옇게 뜬 건 *washed out*, 선크림 백탁은 *white cast*가 안전해요. *whitewashed*는 인종 뉘앙스가 있어서 진료실에선 피하는 게 좋아요."
+ },
+ "+n-2026-11-16|kid-kid": {
+  "유래": "단어를 두 번 붙여 말하면 '진짜 그 뜻'이라는 강조가 돼요(대조 반복). kid에 '새끼 염소'라는 원래 뜻이 있어서, kid-kid = '염소 말고 진짜 사람 아이'.",
+  "예문": "*Is it a kid, like a kid-kid?* — 애라고? 진짜 사람 애?<br>*I want coffee, not coffee-coffee, just something warm.* — 커피 마시고 싶어. 진짜 커피 말고 그냥 따뜻한 거.<br>*Is she your friend or your friend-friend?* — 그냥 친구야, 아니면 사귀는 친구야?"
+ },
+ "+n-2026-11-16|psych out": {
+  "유래": "psych ← psychology(심리)를 줄인 말. psych + out(밖으로 밀어냄) = 상대의 멘탈을 흔들어 승부에서 밀어냄. 반대말 *psych up*은 기운을 위로 끌어올리기.",
+  "예문": "*He stared at me before the race to psych me out.* — 걔가 경기 전에 날 노려보면서 기죽이려 했어.<br>*Don't let the other team psych you out.* — 상대 팀 때문에 멘탈 흔들리지 마.<br>*I'm so psyched for the trip!* — 여행 완전 기대돼!",
+  "메모": "📌 대명사는 가운데: *psych him out* (O) / *psych out him* (X). psych의 p는 소리 안 남(사이크)."
+ },
+ "+n-2026-11-16|throw off": {
+  "유래": "throw(던지다) + off(떨어져 나감) = 말이 등에 탄 사람을 내던지듯(*throw off a rider*), 제 궤도·리듬에서 밀어 떨어뜨림 → 헷갈리게 하다, 흐름을 깨다.",
+  "예문": "*The time difference really threw off my sleep.* — 시차 때문에 잠이 완전 엉망이 됐어.<br>*Sorry, the noise threw me off. Where was I?* — 미안, 소리 때문에 흐름을 놓쳤어. 어디까지 했지?<br>*One wrong number threw off the whole calculation.* — 숫자 하나 틀려서 계산이 다 어긋났어.",
+  "메모": "📌 대명사는 가운데: *throw me off* (O) / *throw off me* (X)"
+ },
+ "+n-2026-11-16|apron": {
+  "유래": "원래 *napron*(프랑스어 naperon, 작은 식탁보 — napkin과 같은 뿌리). *a napron*을 *an apron*으로 잘못 끊어 듣는 바람에 n이 떨어져 굳었어요.",
+  "예문": "*The chef wiped his hands on his apron.* — 요리사가 앞치마에 손을 닦았어.<br>*Grab an apron, this sauce splatters.* — 앞치마 둘러, 이 소스 튀어.<br>*He's still tied to his mother's apron strings.* — 걔는 아직도 엄마 치마폭에 싸여 있어(마마보이)."
+ },
+ "+n-2026-11-16|shake it off": {
+  "유래": "젖은 개가 몸을 부르르 떨어 물기를 털어내는 그림. 기분 나쁜 일·실수·긴장을 몸에서 털어내고 넘어간다는 뜻.",
+  "예문": "*You missed one shot. Shake it off and keep going.* — 한 번 놓친 거야. 털어버리고 계속해.<br>*She made a mistake on stage but shook it off.* — 무대에서 실수했지만 털고 넘어갔어.<br>*I can't shake off this headache.* — 두통이 안 떨어져.",
+  "메모": "📌 대명사는 가운데: *shake it off* (O) / *shake off it* (X). 명사는 어느 쪽이든: *shake off the nerves* = *shake the nerves off*"
+ },
+ "+n-2026-11-16|tone": {
+  "유래": "그리스어 *tonos*(팽팽하게 당긴 줄) → 줄을 당긴 정도에 따른 음높이 → 목소리의 높낮이 → 말투. 같은 뿌리: tune, tension, toner, muscle tone, skin tone.",
+  "예문": "*Watch your tone.* — 말투 조심해.<br>*It wasn't what he said, it was his tone.* — 한 말보다 말투가 문제였어.<br>*This toner helps even out your skin tone.* — 이 토너는 피부 톤을 고르게 해 줘요."
+ },
+ "+n-2026-11-16|snuggle": {
+  "유래": "snug(아늑한) + -le(작은 동작을 반복하는 꼬리). 아늑한 곳으로 몸을 꼼지락꼼지락 파고드는 느낌. cuddle, nuzzle, wiggle, giggle도 같은 -le 방식.",
+  "예문": "*The kids snuggled up on the couch to watch a movie.* — 애들이 소파에 꼭 붙어서 영화를 봤어.<br>*My cat loves to snuggle under the blanket.* — 우리 고양이는 이불 속으로 파고드는 걸 좋아해.<br>*Come snuggle with me, it's cold.* — 이리 와서 붙어 있자, 추워."
  }
 }
