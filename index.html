@@ -199,7 +199,7 @@ body{margin:0;padding-top:env(safe-area-inset-top,0px)}
 
 <script>
 const IV=[0,1,2,4,7,15,30];
-const APP_VER='11.15-c';
+const APP_VER='11.16';
 const LESSON_LEN=10;          // cards per lesson
 const REVIEW_PER_LESSON=2;    // of those, due reviews when new cards remain
 /* progress counts only expressions a lesson can ask (cards with an English line) */
@@ -238,7 +238,7 @@ function parseNote(md){
     /* "## 1. blow minds — 뜻" with a body of **label:** lines and bullets (one expression per heading) */
     if((m=line.match(/^##\s+\d+\.\s+(.+?)\s+[—–]\s+(.+)$/))&&isEn(strip(m[1]))){
       let j=i+1;const body=[];
-      while(j<L.length&&!/^#{1,3}\s/.test(L[j])&&!/^---\s*$/.test(L[j])){body.push(L[j]);j++}
+      while(j<L.length&&!/^#{1,4}\s/.test(L[j])&&!/^---\s*$/.test(L[j])){body.push(L[j]);j++}
       const extras=[];
       for(let k=0;k<body.length;k++){
         const b=body[k],bm=b.match(/^\s*(?:-\s+)?\*\*(.+?)\*\*\s*(.*)$/);
@@ -251,12 +251,14 @@ function parseNote(md){
       cards.push({front:strip(m[1]),back:m[2].trim(),extras,sec:'표현 정리'});
       h2='표현 정리';h3='';inQuiz=false;i=j-1;continue;
     }
-    /* "## 1. Sentence" / "### 1. Sentence" / "### 1) phrase" with "- **뜻:**" (colon inside the bold), "- **예문**" + numbered sub-lines (11/07~) */
-    if((m=line.match(/^(##|###)\s+(?:\d+[.)]\s+)?(.+)$/))&&isEn(strip(m[2]))){
+    /* "## 1. Sentence" / "### 1. Sentence" / "### 1) phrase" / "#### A1) phrase" (11/16) with "- **뜻:**" (colon inside the bold), "- **예문**" + numbered sub-lines (11/07~) */
+    if((m=line.match(/^(##|###|####)\s+(?:[A-Z]?\d+[.)]\s+)?(.+)$/))&&isEn(strip(m[2]))){
       let j=i+1;const body=[];
-      while(j<L.length&&!/^#{1,3}\s/.test(L[j])&&!/^---\s*$/.test(L[j])){body.push(L[j]);j++}
+      while(j<L.length&&!/^#{1,4}\s/.test(L[j])&&!/^---\s*$/.test(L[j])){body.push(L[j]);j++}
       const MEAN=/^\s*-\s*\*\*뜻\s*[:：]\s*\*\*\s*/,mean=body.find(b=>MEAN.test(b));
-      if(mean&&!body.some(b=>/^\s*-\s*\*\*뜻\*\*/.test(b))){
+      /* "#### A8) wear off vs go away" opens with a table instead of 뜻: its 왜·예문 still belong to the line (11/16) */
+      const why4=m[1]==='####'&&!mean&&body.some(b=>/^\s*-\s*\*\*왜\s*[:：]\s*\*\*/.test(b));
+      if((mean||why4)&&!body.some(b=>/^\s*-\s*\*\*뜻\*\*/.test(b))){
         const extras=[];
         for(let k=0;k<body.length;k++){
           const b=body[k];if(b===mean)continue;
@@ -266,14 +268,14 @@ function parseNote(md){
           if(val)extras.push([label,val]);
         }
         if(m[1]==='##'){h2='표현 정리';h3='';inQuiz=false}
-        cards.push({front:strip(m[2]),back:mean.replace(MEAN,'').trim(),extras,sec:m[1]==='##'?'표현 정리':h2});
+        cards.push({front:strip(m[2]),back:mean?mean.replace(MEAN,'').trim():'',extras,sec:m[1]==='##'?'표현 정리':h2});
         i=j-1;continue;
       }
     }
     if((m=line.match(/^##\s+(.*)/))){h2=strip(m[1]).replace(/^[^\w가-힣]+/,'');h3='';inQuiz=/퀴즈/.test(h2);continue}
     if((m=line.match(/^###\s+(.*)/))){
       const title=m[1].trim();let j=i+1;const body=[];
-      while(j<L.length&&!/^#{1,3}\s/.test(L[j])&&!/^---\s*$/.test(L[j])){body.push(L[j]);j++}
+      while(j<L.length&&!/^#{1,4}\s/.test(L[j])&&!/^---\s*$/.test(L[j])){body.push(L[j]);j++}
       const mean=body.find(b=>/^\s*-\s*\*\*뜻\*\*/.test(b));
       if(mean){
         const extras=[];
@@ -300,6 +302,13 @@ function parseNote(md){
       /* a source column (출처: which show the line is from) is a note, not the meaning — it moves to the end */
       if(head.length>=3&&/^출처$/.test(strip(head[1]))){const n=head.length;rows.forEach(r=>{while(r.length<n)r.push('');r.push(r.splice(1,1)[0])});head.push(head.splice(1,1)[0])}
       const h0=strip(head[0]||'');
+      /* a comparison grid with an empty corner cell (| | hide | keep from |, | | 짧은 i | 긴 e |) describes; it is not expression → meaning */
+      if(!h0&&head.length>=3)continue;
+      /* minimal pairs (| 짧은 /ɪ/ | 긴 /iː/ | → sit 앉다 | seat 좌석) are pair cards */
+      if(head.length===2&&/\/.+\//.test(head[0])&&/\/.+\//.test(head[1])&&rows.length&&rows.every(r=>/^[A-Za-z]/.test(r[0]||'')&&/^[A-Za-z]/.test(r[1]||''))){
+        for(const r of rows)cards.push({front:strip(r[0])+'  ↔  '+strip(r[1]),back:strip(head[0])+' ↔ '+strip(head[1]),extras:[],sec:sec(),kind:'pair'});
+        continue;
+      }
       if(/^(뿌리|어원|root)/i.test(h0)){
         const ki=Math.max(head.findIndex(h=>/단어/.test(h)),2);
         for(const r of rows)if(r[0])refs.push({t:'어원',keys:strip(r[ki]||'').replace(/[()]/g,' ').split(/[\/,]/).map(x=>x.trim()).filter(Boolean),
@@ -502,6 +511,10 @@ function markShown(keys){
   lsSet('recent',RECENT);lsSet('seq',SEQ);
 }
 const hasWords=(text,part)=>(' '+text+' ').includes(' '+part+' ');
+/* the same words in another form: "get to" in "getting to me", "pick me up" in "pick me ups" */
+const looseWords=(text,part)=>{const t=text.split(' '),p=part.split(' ').filter(Boolean);if(!p.length)return false;
+  const ok=(w,k)=>w===k||w===k+'s'||w===k+'es'||(k.length>=3&&w.startsWith(k.replace(/e$/,''))&&w.length-k.length<=4);
+  for(let i=0;i+p.length<=t.length;i++)if(p.every((k,j)=>ok(t[i+j],k)))return true;return false};
 function buildLesson(mode,src,practice){
   let pool=srcCards(src).filter(c=>c.en);
   if(!pool.length)return null;
@@ -719,7 +732,7 @@ function noteLinks(c){
   if(!c.gram&&c.kind!=='pair')for(const x of n.cards){
     if(x===c||x.gram||x.kind==='pair'||!x.extras.some(e=>/^(왜|예문|유래)$/.test(e[0])))continue;
     const ch=strip(x.front).split(/~|→|\s\/\s|…/).map(k=>normE(k).trim()).filter(k=>k.split(' ').length>=2||k.length>=6);
-    if(ch.length&&ch.every(k=>hasWords(full,k)))add('표현',xrow(x),4);
+    if(ch.length&&ch.every(k=>hasWords(full,k)||looseWords(full,k)))add('표현',xrow(x),4);
   }
   if(words>=3)for(const x of others){if(x.words<=words&&/[a-z]{4}/.test(normE(x.en))&&has(me,x.en))
     /* rows of the note's pronunciation table (발음 · 연음) get their own label */
