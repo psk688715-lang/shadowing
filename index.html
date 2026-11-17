@@ -199,9 +199,10 @@ body{margin:0;padding-top:env(safe-area-inset-top,0px)}
 
 <script>
 const IV=[0,1,2,4,7,15,30];
-const APP_VER='11.16-b';
+const APP_VER='11.17';
 const LESSON_LEN=10;          // cards per lesson
 const REVIEW_PER_LESSON=2;    // of those, due reviews when new cards remain
+const MIX_NOTES=4;           // new cards take turns between this many most recent notes
 /* progress counts only expressions a lesson can ask (cards with an English line) */
 const progText=cs=>{const ls=cs.filter(c=>c.en);return `${ls.filter(c=>getP(c)).length}/${ls.length}`};
 const reviewCount=cs=>cs.filter(c=>{const p=getP(c);return p&&p.d<=today()}).length;
@@ -525,11 +526,19 @@ function buildLesson(mode,src,practice){
   const due=shuffle(pool.filter(c=>{const p=getP(c);return p&&p.d<=t})).sort((a,b)=>recentPenalty(a.key)-recentPenalty(b.key));
   /* dated daily notes first (oldest first), then the undated workbooks */
   const nkey=c=>{const d=S.notes[c.note].date;return d?'0'+d:'1'};
-  const neu=pool.filter(c=>!getP(c)).sort((a,b)=>nkey(a).localeCompare(nkey(b))||a.note.localeCompare(b.note)||a.idx-b.idx);
+  /* new cards: the most recent notes first, taking turns between them (one from 11/16, one from 11/15, …) and in random order inside each note,
+     so a lesson hops between recent topics instead of walking one note top to bottom (11/17 request). Older notes and the workbooks follow. */
+  const byNote={};for(const c of pool)if(!getP(c))(byNote[c.note]??=[]).push(c);
+  const order=Object.keys(byNote);
+  const dOrder=order.filter(id=>S.notes[id].date).sort((a,b)=>S.notes[b].date.localeCompare(S.notes[a].date)||b.localeCompare(a));
+  const rest=order.filter(id=>!S.notes[id].date).sort();
+  const interleave=ids=>{const ls=ids.map(id=>shuffle(byNote[id]));const out=[];for(let k=0;ls.some(l=>l.length);k++){const l=ls[k%ls.length];if(l.length)out.push(l.shift())}return out};
+  const neu=[...interleave(dOrder.slice(0,MIX_NOTES)),...interleave(dOrder.slice(MIX_NOTES)),...interleave(rest)];
+  const recentIds=new Set(notesSorted().filter(n=>n.date).slice(0,MIX_NOTES+1).map(n=>n.id));
   const later=pool.filter(c=>{const p=getP(c);return p&&p.d>t}).sort((a,b)=>getP(a).d<getP(b).d?-1:1);
   const nRev=neu.length?Math.min(REVIEW_PER_LESSON,due.length):due.length;
   pool=practice?shuffle(later):[...due.slice(0,nRev),...neu,...due.slice(nRev)];
-  const quizzes=mode==='speak'?[]:shuffle(notesSorted().filter(n=>src==='due'||n.id===src).flatMap(n=>n.quiz).filter(q=>q.a&&!recentPenalty(q.key))).sort((a,b)=>(RECENT[a.key]||0)-(RECENT[b.key]||0)).slice(0,1);
+  const quizzes=mode==='speak'?[]:shuffle(notesSorted().filter(n=>src==='due'||n.id===src).flatMap(n=>n.quiz).filter(q=>q.a&&!recentPenalty(q.key))).sort((a,b)=>(recentIds.has(b.note)-recentIds.has(a.note))||(RECENT[a.key]||0)-(RECENT[b.key]||0)).slice(0,1);
   /* a card whose phrase is the same as a fill-in sentence's would just repeat it */
   const qText=quizzes.map(q=>normE(fillCloze(q))),qAns=quizzes.map(q=>normE(q.a.replace(/,/g,' '))).filter(a=>a.length>2);
   pool=pool.filter(c=>{const e=normE(c.en);return !qText.some(s=>hasWords(s,e)||hasWords(e,s))&&!qAns.some(a=>hasWords(e,a))});
@@ -909,7 +918,7 @@ function viewHome(){
       <div class="row"><span class="hint">효과음</span><div class="seg"><button data-act="sfx" data-v="1" aria-pressed="${sfxOn()}">켜기</button><button data-act="sfx" data-v="0" aria-pressed="${!sfxOn()}">끄기</button></div></div>
       <div class="row"><span class="hint">말하기 문제 <small>(지하철에선 끄기)</small></span><div class="seg"><button data-act="speakset" data-v="1" aria-pressed="${speakOn()}">켜기</button><button data-act="speakset" data-v="0" aria-pressed="${!speakOn()}">끄기</button></div></div>
   </div>
-  <div style="display:flex;flex-direction:column;gap:8px"><h2>어느 노트로 공부할까요</h2><div class="hint">레슨마다 새 표현 ${LESSON_LEN-REVIEW_PER_LESSON}개를 노트 순서대로 배우고, 틀렸던 표현 ${REVIEW_PER_LESSON}개를 같이 복습해요. 날짜를 고르면 그날 노트만 나와요.</div>${srcChips(S.src,'src')}</div>
+  <div style="display:flex;flex-direction:column;gap:8px"><h2>어느 노트로 공부할까요</h2><div class="hint">레슨마다 새 표현 ${LESSON_LEN-REVIEW_PER_LESSON}개를 최근 노트 ${MIX_NOTES}개에서 섞어서 배우고, 틀렸던 표현 ${REVIEW_PER_LESSON}개를 같이 복습해요. 날짜를 고르면 그날 노트만 나와요.</div>${srcChips(S.src,'src')}</div>
   ${(()=>{
     const saved=lsGet('lesson'),left=m=>saved&&saved.v===1&&saved.mode===m?`이어서 하기 · ${Math.min(saved.i+1,saved.items.length)}/${saved.items.length}번째 문제부터`:'';
     const pool=srcCards(S.src).filter(c=>c.en),nNew=pool.filter(c=>!getP(c)).length,nRev=reviewCount(pool);
