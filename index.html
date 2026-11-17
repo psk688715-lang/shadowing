@@ -199,12 +199,14 @@ body{margin:0;padding-top:env(safe-area-inset-top,0px)}
 
 <script>
 const IV=[0,1,2,4,7,15,30];
-const APP_VER='11.17';
+const APP_VER='11.17-b';
 const LESSON_LEN=10;          // cards per lesson
 const REVIEW_PER_LESSON=2;    // of those, due reviews when new cards remain
 const MIX_NOTES=4;           // new cards take turns between this many most recent notes
 /* progress counts only expressions a lesson can ask (cards with an English line) */
-const progText=cs=>{const ls=cs.filter(c=>c.en);return `${ls.filter(c=>getP(c)).length}/${ls.length}`};
+/* rows of a pronunciation table (pick you over → 피큐오버) spell the sound in Hangul, and grammar-table rows hold an English example where the meaning goes: neither is a lesson question (11/17) */
+const askable=c=>!!c.en&&!c.pron&&!c.gram;
+const progText=cs=>{const ls=cs.filter(askable);return `${ls.filter(c=>getP(c)).length}/${ls.length}`};
 const reviewCount=cs=>cs.filter(c=>{const p=getP(c);return p&&p.d<=today()}).length;
 const $=s=>document.querySelector(s);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -406,7 +408,7 @@ function meanText(c){
 function buildNote(id,v){
   v={...v,label:String(v.label||v.title||id).replace(/\s*(쉐도잉\s*)?영어\s*(표현|정리)\s*$/,'').trim()||v.label};
   const p=parseNote(v.md||'');
-  p.cards.forEach((c,i)=>{c.idx=i;c.note=id;c.id=hash(c.front+'|'+strip(c.back).slice(0,40));c.key=id+'/'+c.id;c.en=engText(c);c.ko=meanText(c);c.words=c.en?c.en.split(' ').length:0});
+  p.cards.forEach((c,i)=>{c.idx=i;c.note=id;c.id=hash(c.front+'|'+strip(c.back).slice(0,40));c.key=id+'/'+c.id;c.en=engText(c);c.ko=meanText(c);c.pron=c.kind!=='pair'&&!c.gram&&/발음|연음/.test(c.sec||'')?1:0;c.words=c.en?c.en.split(' ').length:0});
   p.quiz.forEach((q,k)=>{q.note=id;q.key=id+'/q'+k});
   return {id,title:v.title||'',label:v.label||v.title||id,date:v.date||'',md:v.md||'',cards:p.cards,quiz:p.quiz,refs:p.refs};
 }
@@ -517,7 +519,7 @@ const looseWords=(text,part)=>{const t=text.split(' '),p=part.split(' ').filter(
   const ok=(w,k)=>w===k||w===k+'s'||w===k+'es'||(k.length>=3&&w.startsWith(k.replace(/e$/,''))&&w.length-k.length<=4);
   for(let i=0;i+p.length<=t.length;i++)if(p.every((k,j)=>ok(t[i+j],k)))return true;return false};
 function buildLesson(mode,src,practice){
-  let pool=srcCards(src).filter(c=>c.en);
+  let pool=srcCards(src).filter(askable);
   if(!pool.length)return null;
   /* only new and due cards make a lesson; learned cards come back on their own day, or when asked for practice */
   if(!practice&&!pool.some(c=>{const p=getP(c);return !p||p.d<=today()}))return {empty:true};
@@ -556,7 +558,7 @@ function buildLesson(mode,src,practice){
     /* pairs come from cards this lesson isn't already asking about */
     /* pairs review cards already learned that this lesson isn't asking about */
     const inLesson=new Set(pool.slice(0,nCards).map(c=>c.key));
-    const m=makeMatch(shuffle(srcCards(src).filter(c=>getP(c)&&!inLesson.has(c.key))));
+    const m=makeMatch(shuffle(srcCards(src).filter(c=>askable(c)&&getP(c)&&!inLesson.has(c.key))));
     if(m)items.splice(Math.floor(items.length/2),0,m);
   }
   markShown(items.flatMap(it=>it.type==='match'?it.pairs.map(c=>c.key):[it.c?it.c.key:it.q.key]));
@@ -591,7 +593,7 @@ function makeItem(type,c,pool){
   const it={type,c};
   if(type==='listen'||type==='choose'){
     const field=type==='listen'?'ko':'en';
-    const others=shuffle(allCards().filter(x=>x!==c&&x[field]&&x[field]!==c[field]&&x.en));
+    const others=shuffle(allCards().filter(x=>x!==c&&x[field]&&x[field]!==c[field]&&askable(x)));
     const seen=new Set([c[field]]);const opts=[c];
     for(const x of others){if(opts.length>=4)break;if(!seen.has(x[field])){seen.add(x[field]);opts.push(x)}}
     it.opts=shuffle(opts);it.field=field;
@@ -921,7 +923,7 @@ function viewHome(){
   <div style="display:flex;flex-direction:column;gap:8px"><h2>어느 노트로 공부할까요</h2><div class="hint">레슨마다 새 표현 ${LESSON_LEN-REVIEW_PER_LESSON}개를 최근 노트 ${MIX_NOTES}개에서 섞어서 배우고, 틀렸던 표현 ${REVIEW_PER_LESSON}개를 같이 복습해요. 날짜를 고르면 그날 노트만 나와요.</div>${srcChips(S.src,'src')}</div>
   ${(()=>{
     const saved=lsGet('lesson'),left=m=>saved&&saved.v===1&&saved.mode===m?`이어서 하기 · ${Math.min(saved.i+1,saved.items.length)}/${saved.items.length}번째 문제부터`:'';
-    const pool=srcCards(S.src).filter(c=>c.en),nNew=pool.filter(c=>!getP(c)).length,nRev=reviewCount(pool);
+    const pool=srcCards(S.src).filter(askable),nNew=pool.filter(c=>!getP(c)).length,nRev=reviewCount(pool);
     const done=!saved&&!nNew&&!nRev;
     const btn=(m,cls,icon,title,sub)=>`<button class="start ${cls}" data-act="lesson" data-v="${m}"><span class="ic">${icon}</span><div><b>${left(m)?title+' · 이어서':title}</b><span>${left(m)||sub}</span></div><span>›</span></button>`;
     return `${done?`<div class="panel"><b>오늘 할 것을 다 했어요</b><div class="hint">이 노트의 새 표현은 모두 배웠고, 오늘 복습할 표현도 없어요. 새 노트를 올리거나 내일 다시 오면 복습할 표현이 생겨요.</div><div><button class="btn small" data-act="practice">그래도 배운 표현 다시 연습하기</button></div></div>`:''}
