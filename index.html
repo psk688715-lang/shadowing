@@ -206,8 +206,9 @@ body{margin:0;padding-top:env(safe-area-inset-top,0px)}
 <div id="toast" hidden></div>
 
 <script>
-const IV=[0,1,2,4,7,15,30];
-const APP_VER='11.23';
+const IV=[0,2,5,12,25,50,100];   // days until the next review, by step
+const DAILY_REVIEW=15;          // at most this many reviews a day; the rest wait for later days
+const APP_VER='11.23-b';
 const LESSON_LEN=10;          // cards per lesson
 const REVIEW_PER_LESSON=2;    // of those, due reviews when new cards remain
 const MIX_NOTES=4;           // new cards take turns between this many most recent notes
@@ -215,7 +216,15 @@ const MIX_NOTES=4;           // new cards take turns between this many most rece
 /* rows of a pronunciation table (pick you over → 피큐오버) spell the sound in Hangul, and grammar-table rows hold an English example where the meaning goes: neither is a lesson question (11/17) */
 const askable=c=>!!c.en&&!c.pron&&!c.gram&&/[가-힣]/.test(c.ko||'');
 const progText=cs=>{const ls=cs.filter(askable);return `${ls.filter(c=>getP(c)).length}/${ls.length}`};
-const reviewCount=cs=>cs.filter(c=>{const p=getP(c);return p&&p.d<=today()}).length;
+/* today's reviews: most overdue first, capped at DAILY_REVIEW across all notes */
+/* the day's list is picked once (kept per device), so finishing a review never pulls in another one */
+let DK=lsGet('dueDay')||{};
+const dueKeys=()=>{const t=today();
+  if(!S.loaded)return new Set();
+  if(DK.day!==t){DK={day:t,keys:allCards().filter(c=>{const p=getP(c);return p&&p.d<=t}).sort((a,b)=>getP(a).d<getP(b).d?-1:getP(a).d>getP(b).d?1:0).slice(0,DAILY_REVIEW).map(c=>c.key)};lsSet('dueDay',DK)}
+  return new Set(DK.keys.filter(k=>{const c=cardByKey(k),p=c&&getP(c);return p&&p.d<=t}))};
+const isRev=(c,k)=>(k||dueKeys()).has(c.key);
+const reviewCount=cs=>{const k=dueKeys();return cs.filter(c=>k.has(c.key)).length};
 const $=s=>document.querySelector(s);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const inl=s=>esc(s).replace(/\*\*(.+?)\*\*/g,'<b>$1</b>').replace(/\*(.+?)\*/g,'<i>$1</i>').replace(/`(.+?)`/g,'<code>$1</code>');
@@ -464,7 +473,7 @@ document.addEventListener('visibilitychange',()=>{if(document.hidden)flush()});
 function grow(c,ok){
   const p=getP(c)||{b:0};let b=p.b||0;
   if(ok){b=Math.min(b+1,IV.length-1);setP(c,{b,d:addDays(IV[b])})}
-  else setP(c,{b:0,d:today()});
+  else setP(c,{b:Math.max(b-2,0),d:addDays(1)});
 }
 function addXP(n){S.stats.days[today()]=(S.stats.days[today()]||0)+n;dirty.add('stats');queueSave()}
 function streak(){
@@ -538,10 +547,11 @@ function buildLesson(mode,src,practice){
   let pool=srcCards(src).filter(askable);
   if(!pool.length)return null;
   /* only new and due cards make a lesson; learned cards come back on their own day, or when asked for practice */
-  if(!practice&&!pool.some(c=>{const p=getP(c);return !p||p.d<=today()}))return {empty:true};
+  const dk=dueKeys();
+  if(!practice&&!pool.some(c=>!getP(c)||dk.has(c.key)))return {empty:true};
   /* move forward: a couple of due reviews, then new cards in note order (oldest note first, top to bottom) */
   const t=today();
-  const due=shuffle(pool.filter(c=>{const p=getP(c);return p&&p.d<=t})).sort((a,b)=>recentPenalty(a.key)-recentPenalty(b.key));
+  const due=shuffle(pool.filter(c=>dk.has(c.key))).sort((a,b)=>recentPenalty(a.key)-recentPenalty(b.key));
   /* dated daily notes first (oldest first), then the undated workbooks */
   const nkey=c=>{const d=S.notes[c.note].date;return d?'0'+d:'1'};
   /* new cards: the most recent notes first, taking turns between them (one from 11/16, one from 11/15, …) and in random order inside each note,
@@ -1057,13 +1067,13 @@ function viewCards(){
   }
   return h+'</div>';
 }
-function buildFC(){const F=S.fc;let list=allCards();list=F.deck==='due'?list.filter(isDue):list.filter(c=>c.note===F.deck);F.queue=shuffle(list.map(c=>c.key));F.qi=0;F.flipped=false;F.started=false;F.done={known:0,fuzzy:0,miss:0}}
+function buildFC(){const F=S.fc;let list=allCards();const k=dueKeys();list=F.deck==='due'?list.filter(c=>k.has(c.key)):list.filter(c=>c.note===F.deck);F.queue=shuffle(list.map(c=>c.key));F.qi=0;F.flipped=false;F.started=false;F.done={known:0,fuzzy:0,miss:0}}
 function fgrade(g){
   const F=S.fc,c=F.queue[F.qi]?cardByKey(F.queue[F.qi]):null;if(!c||!F.flipped)return;
   const p=getP(c)||{b:0};let b=p.b||0;
   if(g===3){b=Math.min(b+1,IV.length-1);setP(c,{b,d:addDays(IV[b])});F.done.known++}
   else if(g===2){b=Math.max(b,1);setP(c,{b,d:addDays(1)});F.done.fuzzy++}
-  else{setP(c,{b:0,d:today()});F.done.miss++;F.queue.splice(Math.min(F.qi+4,F.queue.length),0,c.key)}
+  else{setP(c,{b:Math.max(b-2,0),d:addDays(1)});F.done.miss++;F.queue.splice(Math.min(F.qi+4,F.queue.length),0,c.key)}
   F.qi++;F.flipped=false;F.started=true;render();
 }
 function viewNotes(){
