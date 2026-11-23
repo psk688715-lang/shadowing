@@ -39,8 +39,16 @@ nav{display:flex;gap:4px;border-bottom:1px solid var(--line)}
 nav button{all:unset;cursor:pointer;padding:8px 14px;font-weight:500;color:var(--muted);border-bottom:2px solid transparent;margin-bottom:-1px}
 nav button[aria-selected="true"]{color:var(--ink);border-color:var(--accent)}
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-.chips{display:flex;flex-wrap:wrap;gap:6px}
-.chip{all:unset;cursor:pointer;font-size:13px;padding:5px 12px;border:1px solid var(--line);border-radius:999px;color:var(--muted);background:var(--card)}
+/* note picker: one row that slides sideways, so it never grows down the page as notes pile up (11/23) */
+.chiprow{display:flex;align-items:center;gap:4px;min-width:0;max-width:100%;overflow:hidden}
+.chips{position:relative;display:flex;flex-wrap:nowrap;gap:6px;overflow-x:auto;scroll-snap-type:x proximity;scrollbar-width:none;-webkit-overflow-scrolling:touch;min-width:0;width:0;flex:1 1 auto;padding:2px 12px;scroll-padding:0 12px;
+  -webkit-mask-image:linear-gradient(90deg,transparent 0,#000 14px,#000 calc(100% - 14px),transparent 100%);mask-image:linear-gradient(90deg,transparent 0,#000 14px,#000 calc(100% - 14px),transparent 100%)}
+.chips::-webkit-scrollbar{display:none}
+.chip{all:unset;cursor:pointer;font-size:13px;padding:5px 12px;border:1px solid var(--line);border-radius:999px;color:var(--muted);background:var(--card);flex:0 0 auto;white-space:nowrap;max-width:230px;overflow:hidden;text-overflow:ellipsis;scroll-snap-align:center}
+.chip small{font-size:11px;opacity:.75;margin-right:3px}
+.cnav{all:unset;cursor:pointer;flex:0 0 auto;width:28px;height:28px;border-radius:50%;border:1px solid var(--line);background:var(--card);color:var(--muted);text-align:center;line-height:26px;font-size:16px}
+.cnav:hover{color:var(--ink);border-color:var(--ink)}
+@media (hover:none){.cnav{display:none}}
 .chip[aria-pressed="true"]{background:var(--ink);color:var(--paper);border-color:var(--ink)}
 .row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between}
 .seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
@@ -199,13 +207,13 @@ body{margin:0;padding-top:env(safe-area-inset-top,0px)}
 
 <script>
 const IV=[0,1,2,4,7,15,30];
-const APP_VER='11.17-b';
+const APP_VER='11.23';
 const LESSON_LEN=10;          // cards per lesson
 const REVIEW_PER_LESSON=2;    // of those, due reviews when new cards remain
 const MIX_NOTES=4;           // new cards take turns between this many most recent notes
 /* progress counts only expressions a lesson can ask (cards with an English line) */
 /* rows of a pronunciation table (pick you over → 피큐오버) spell the sound in Hangul, and grammar-table rows hold an English example where the meaning goes: neither is a lesson question (11/17) */
-const askable=c=>!!c.en&&!c.pron&&!c.gram;
+const askable=c=>!!c.en&&!c.pron&&!c.gram&&/[가-힣]/.test(c.ko||'');
 const progText=cs=>{const ls=cs.filter(askable);return `${ls.filter(c=>getP(c)).length}/${ls.length}`};
 const reviewCount=cs=>cs.filter(c=>{const p=getP(c);return p&&p.d<=today()}).length;
 const $=s=>document.querySelector(s);
@@ -260,7 +268,9 @@ function parseNote(md){
       while(j<L.length&&!/^#{1,4}\s/.test(L[j])&&!/^---\s*$/.test(L[j])){body.push(L[j]);j++}
       const MEAN=/^\s*-\s*\*\*뜻\s*[:：]\s*\*\*\s*/,mean=body.find(b=>MEAN.test(b));
       /* "#### A8) wear off vs go away" opens with a table instead of 뜻: its 왜·예문 still belong to the line (11/16) */
-      const why4=m[1]==='####'&&!mean&&body.some(b=>/^\s*-\s*\*\*왜\s*[:：]\s*\*\*/.test(b));
+      /* 11/23: a "####" entry may have no 뜻 at all, only labelled bullets (**early bird:** …, **농담 구조:** …) — it joins its script line by number */
+      const why4=m[1]==='####'&&!mean&&body.some(b=>/^\s*-\s+\*\*[^*]+?\*\*/.test(b));
+      const dtag=(line.match(/^####\s+([A-Z]\d+)[.)]/)||[])[1];
       if((mean||why4)&&!body.some(b=>/^\s*-\s*\*\*뜻\*\*/.test(b))){
         const extras=[];
         for(let k=0;k<body.length;k++){
@@ -271,7 +281,7 @@ function parseNote(md){
           if(val)extras.push([label,val]);
         }
         if(m[1]==='##'){h2='표현 정리';h3='';inQuiz=false}
-        cards.push({front:strip(m[2]),back:mean?mean.replace(MEAN,'').trim():'',extras,sec:m[1]==='##'?'표현 정리':h2});
+        cards.push({front:strip(m[2]),back:mean?mean.replace(MEAN,'').trim():'',extras,sec:m[1]==='##'?'표현 정리':h2,...(dtag?{dtag}:{}),...(mean?{}:{donly:1})});
         i=j-1;continue;
       }
     }
@@ -298,15 +308,18 @@ function parseNote(md){
       while(j<L.length&&/^\s*\|/.test(L[j])){rows.push(cells(L[j]));j++}
       i=j-1;
       /* a leading "#" numbering column carries no content */
-      if(head[0]==='#'){head.shift();rows.forEach(r=>r.shift())}
+      if(head[0]==='#'){head.shift();rows.forEach(r=>{r.tag=strip(r.shift()||'')})}
       /* a speaker column (남/여) is not the expression */
       if(/^(누가|화자|speaker|who)$/i.test(head[0])){head.shift();rows.forEach(r=>r.shift())}
       /* word-root and pronunciation-rule tables are not cards — they feed the explanation of cards that use those words */
       /* a source column (출처: which show the line is from) is a note, not the meaning — it moves to the end */
-      if(head.length>=3&&/^출처$/.test(strip(head[1]))){const n=head.length;rows.forEach(r=>{while(r.length<n)r.push('');r.push(r.splice(1,1)[0])});head.push(head.splice(1,1)[0])}
+      /* also "누가 · 상황", "출처 · 상황" (11/23) */
+      if(head.length>=3&&(/^출처$/.test(strip(head[1]))||/^(출처|누가|화자|상황)/.test(strip(head[1]))&&head.slice(2).some(x=>/한국어/.test(x)))){const n=head.length;rows.forEach(r=>{while(r.length<n)r.push('');r.push(r.splice(1,1)[0])});head.push(head.splice(1,1)[0])}
       const h0=strip(head[0]||'');
       /* a comparison grid with an empty corner cell (| | hide | keep from |, | | 짧은 i | 긴 e |) describes; it is not expression → meaning */
       if(!h0&&head.length>=3)continue;
+      /* "영작 교정" (내가 쓴 문장 → 고친 문장) rows are corrections, not expression → meaning (11/23) */
+      if(/내가 쓴|교정/.test(h0)||/교정/.test(h2))continue;
       /* minimal pairs (| 짧은 /ɪ/ | 긴 /iː/ | → sit 앉다 | seat 좌석) are pair cards */
       if(head.length===2&&/\/.+\//.test(head[0])&&/\/.+\//.test(head[1])&&rows.length&&rows.every(r=>/^[A-Za-z]/.test(r[0]||'')&&/^[A-Za-z]/.test(r[1]||''))){
         for(const r of rows)cards.push({front:strip(r[0])+'  ↔  '+strip(r[1]),back:strip(head[0])+' ↔ '+strip(head[1]),extras:[],sec:sec(),kind:'pair'});
@@ -336,7 +349,7 @@ function parseNote(md){
         if(!r[0])continue;
         if(head.length===2&&/차이/.test(head[1])){cards.push({front:strip(r[0]),back:r[1]||'—',extras:[],sec:sec(),kind:'pair'});continue}
         if(pair)cards.push({front:strip(r[0])+'  vs  '+strip(r[1]),back:r[2]||'—',extras:[],sec:sec(),kind:'pair'});
-        else cards.push({front:strip(r[0]),back:r[1]||'',extras:head.slice(2).map((h,k)=>[h,r[k+2]||'']).filter(x=>x[1]),sec:sec(),kind:ko?'ko':'',...(gram?{gram:1}:{})});
+        else cards.push({front:strip(r[0]),back:r[1]||'',extras:head.slice(2).map((h,k)=>[h,r[k+2]||'']).filter(x=>x[1]),sec:sec(),kind:ko?'ko':'',...(gram?{gram:1}:{}),...(/^[A-Z]\d+$/.test(r.tag||'')?{tag:r.tag}:{})});
       }
       continue;
     }
@@ -380,8 +393,11 @@ function parseNote(md){
     const am=q.a.match(/^(.+?)\s*\((?:또는|or)\s+([^)]+)\)\s*$/)||q.a.match(/^(.+?)\s*\(([^)가-힣]+?)도\s*가능\)\s*$/);if(am){q.a=am[1];q.alt=am[2].split(/\s*[,\/]\s*/)}});
   /* the same English sentence twice in one note (script + expression table) stays one card */
   /* the duplicate's meaning and notes move onto the card that stays */
+  /* a detail entry with no 뜻 of its own (#### B6) …) hands its notes to the script row numbered B6 (11/23) */
+  const byTag=new Map();for(const c of cards)if(c.tag&&!byTag.has(c.tag))byTag.set(c.tag,c);
   const seen=new Map();
   return {refs,cards:cards.filter(c=>{
+    if(c.donly&&byTag.has(c.dtag)){const k=byTag.get(c.dtag);for(const e of c.extras)if(e[1])k.extras.push(e);return false}
     const f=strip(c.front).toLowerCase().replace(/[^a-z' ]/g,'').replace(/\s+/g,' ').trim();
     /* short phrases merge too, but only an expression card into an expression card (not grammar/pair/Korean-front rows) */
     if(!isEn(c.front)||!f||(f.split(' ').length<3&&(c.kind||c.gram)))return true;
@@ -739,7 +755,12 @@ function noteLinks(c){
   /* the note's detailed entry for this line (뜻·왜·예문) when its title is written with "~", "/" or "→"
      ("I haven't ~ since we got in that fight", "Sure thing!" for "Can I talk to him? → Sure thing!"): every piece must be in the line */
   const full=normE(strip(c.front).replace(/\([^)]*[가-힣][^)]*\)/g,' '));
-  const xrow=x=>`<b>${esc(strip(x.front))}</b> — ${inl(x.back)}${x.extras.length?'<br><span class="mut">'+x.extras.map(e=>(/^(왜|예문|뜻 풀이|세트|유래|메모)$/.test(e[0])?'<b>'+esc(e[0])+'</b> ':'')+inl(e[1])).join('<br>')+'</span>':''}`;
+  /* a card's notes plus what Claude added for it in explain.json ("+note|front"), so a word card can borrow both (11/23) */
+  const exOf=x=>[...x.extras,...Object.entries(S.xpl['+'+x.note+'|'+x.front]||{})];
+  const xrow=x=>{const ex=exOf(x);return `<b>${esc(strip(x.front))}</b> — ${inl(x.back)}${ex.length?'<br><span class="mut">'+ex.map(e=>(/^(왜|예문|뜻 풀이|세트|유래|메모)$/.test(e[0])?'<b>'+esc(e[0])+'</b> ':'')+String(e[1]).split('<br>').map(inl).join('<br>')).join('<br>')+'</span>':''}`};
+  /* script row A3 ↔ its detail entry "#### A3)" even when the wording differs (did him in ↔ do someone in) (11/23) */
+  if(c.tag)for(const x of n.cards)if(x!==c&&x.dtag===c.tag)add('표현',xrow(x),4);
+  if(c.dtag)for(const x of n.cards)if(x!==c&&x.tag===c.dtag&&x.en)add('원문',`<b>${esc(x.en)}</b> — ${inl(x.back)}`,2);
   if(!c.gram&&c.kind!=='pair')for(const x of n.cards){
     if(x===c||x.gram||x.kind==='pair'||!x.extras.some(e=>/^(왜|예문|유래)$/.test(e[0])))continue;
     const ch=strip(x.front).split(/~|→|\s\/\s|…/).map(k=>normE(k).trim()).filter(k=>k.split(' ').length>=2||k.length>=6);
@@ -755,7 +776,7 @@ function noteLinks(c){
   if((words<=5||c.kind==='pair')&&!c.gram&&!c.extras.some(e=>e[0]==='예문')){
     const alts=strip(c.front).replace(/\([^)]*\)/g,' ').split(/\s\/\s/).map(a=>a.split(/~|…/).map(k=>normE(k).trim()).filter(Boolean)).filter(a=>a.length);
     for(const x of n.cards){
-      if(x===c||x.gram||x.kind==='pair'||!x.extras.some(e=>e[0]==='예문'))continue;
+      if(x===c||x.gram||x.kind==='pair'||!exOf(x).some(e=>e[0]==='예문'))continue;
       const t=normE(strip(x.front)+' '+(x.en||''));
       if(alts.some(a=>a.every(k=>hasWords(t,k)||looseWords(t,k)))){
         /* the bare "원문" row for that same line is now redundant */
@@ -901,8 +922,8 @@ function shell(inner){
 }
 function srcChips(cur,act){
   const notes=notesSorted(),all=allCards(),prog=progText;
-  return `<div class="chips"><button class="chip" data-act="${act}" data-v="due" aria-pressed="${cur==='due'}">전체 노트 · 진도 ${prog(all)}</button>
-  ${notes.map(n=>`<button class="chip" data-act="${act}" data-v="${esc(n.id)}" aria-pressed="${cur===n.id}">${esc(shortDate(n.date))} ${esc(n.label)} · ${prog(n.cards)}</button>`).join('')}</div>`;
+  return `<div class="chiprow"><button class="cnav" data-act="chipNav" data-v="-1" aria-label="앞 노트 보기">‹</button><div class="chips"><button class="chip" data-act="${act}" data-v="due" aria-pressed="${cur==='due'}">전체 노트 · 진도 ${prog(all)}</button>
+  ${notes.map(n=>`<button class="chip" data-act="${act}" data-v="${esc(n.id)}" aria-pressed="${cur===n.id}" title="${esc(shortDate(n.date)+' '+n.label)}">${n.date?`<small>${esc(shortDate(n.date))}</small>`:''}${esc(n.label)} · ${prog(n.cards)}</button>`).join('')}</div><button class="cnav" data-act="chipNav" data-v="1" aria-label="다음 노트 보기">›</button></div>`;
 }
 function viewHome(){
   if(!Object.keys(S.notes).length)return `<div class="panel empty"><b>아직 노트가 없어요</b>노트 탭에서 영어 표현 .md 파일을 올리면 레슨이 만들어져요.</div>`;
@@ -1109,6 +1130,8 @@ function render(){
     <b>이 앱을 종료할까요?</b><div class="hint">뒤로 가기를 한 번 더 누르면 종료돼요.</div>
     <div class="acts"><button class="btn" data-act="stay">계속 공부하기</button><button class="btn primary" data-act="quit">종료</button></div></div></div>`:'');
   if(S.tab==='notes')renderResults();
+  /* the picked note slides into the middle of its row */
+  document.querySelectorAll('.chips').forEach(row=>{const on=row.querySelector('[aria-pressed="true"]');if(on)row.scrollLeft=on.offsetLeft-(row.clientWidth-on.offsetWidth)/2});
 }
 let tT=null;function toast(t){const e=$('#toast');e.textContent=t;e.hidden=false;clearTimeout(tT);tT=setTimeout(()=>e.hidden=true,3200)}
 
@@ -1122,6 +1145,7 @@ document.addEventListener('click',e=>{
   const v=t.dataset.v,L=S.lesson,it=curItem();
   switch(t.dataset.act){
     case 'src':S.src=v;render();break;
+    case 'chipNav':{const row=t.parentElement.querySelector('.chips');row.scrollBy({left:(+v)*row.clientWidth*.8,behavior:'smooth'});break}
     case 'goal':S.stats.goal=+v;dirty.add('stats');queueSave();render();break;
     case 'sfx':lsSet('sfx',v==='1');render();if(v==='1')sfx('ok');break;
     case 'speakset':lsSet('speak',v==='1');render();toast(v==='1'?'말하기 문제를 다시 넣어요.':'이제 누르기만으로 푸는 문제만 나와요.');break;
